@@ -1,0 +1,6 @@
+{
+  "name": "Intellektual Salomatlik Platformasi",
+  "description": "Xronik noinfeksion kasalliklar xavfini aniqlash, bashorat qilish va Fergana vodiysi aholisi uchun shaxsiylashtirilgan profilaktik tibbiy-maslahat axborot tizimi",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
