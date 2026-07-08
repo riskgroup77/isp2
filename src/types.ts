@@ -82,6 +82,12 @@ export interface HealthJournalEntry {
   alomatlar: string[]; // ['ogriq', 'nafas_qisilishi', 'bosh_aylanishi', 'yurak_oynashi', 'shishlar', 'holsizlik']
   dorilar: { nomi: string; doza: string; ichildi: boolean }[];
   qaydlar: string;
+  /** Kunlik yurilgan masofa (metr) */
+  yurilganMetr?: number | '';
+  /** Ichilgan suyuqlik (ml) */
+  ichilganSuvMl?: number | '';
+  /** Uxlash vaqti (soat) */
+  uxquSoati?: number | '';
 }
 
 export type UserRole = 'admin' | 'shifokor' | 'xodim';

@@ -8,6 +8,8 @@ import {
   RefreshCw,
   ScrollText,
   ShieldAlert,
+  Search,
+  Pencil,
   Users,
 } from 'lucide-react';
 import {
@@ -21,6 +23,8 @@ import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
 import type { DashboardStats, SurveyResponseOut } from '../types/api';
 import type { UserProfile } from '../types';
 import SurveyReport from './SurveyReport';
+import SurveyAnalyticsPanel from './SurveyAnalyticsPanel';
+import QuestionEditor from './QuestionEditor';
 import { t } from '../lib/lang';
 
 interface AdminDashboardProps {
@@ -40,7 +44,7 @@ export default function AdminDashboard({
   const [surveys, setSurveys] = useState<SurveyResponseOut[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'dashboard' | 'surveys' | 'doctors' | 'logs'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'analytics' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyResponseOut | null>(null);
   const [doctorIdInput, setDoctorIdInput] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -94,7 +98,9 @@ export default function AdminDashboard({
 
   const tabs = [
     { id: 'dashboard' as const, label: 'Statistika', icon: Activity },
+    { id: 'analytics' as const, label: "Qidiruv va Excel", icon: Search },
     { id: 'surveys' as const, label: "So'rovnomalar", icon: ClipboardList },
+    { id: 'questions' as const, label: 'Anketa tahriri', icon: Pencil },
     { id: 'doctors' as const, label: 'Shifokorlar', icon: Users },
     { id: 'logs' as const, label: 'Loglar', icon: ScrollText },
   ];
@@ -188,6 +194,18 @@ export default function AdminDashboard({
                 />
               </div>
             )}
+
+            {tab === 'analytics' && (
+              <SurveyAnalyticsPanel
+                surveys={surveys}
+                onSelectSurvey={(s) => {
+                  setSelectedSurvey(s);
+                  setTab('surveys');
+                }}
+              />
+            )}
+
+            {tab === 'questions' && <QuestionEditor />}
 
             {tab === 'surveys' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

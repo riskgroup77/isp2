@@ -12,6 +12,7 @@ import { reanalyzeSurvey } from '../lib/api';
 import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
 import type { AIReport, SurveyResponseOut, SurveySubmitResponse } from '../types/api';
 import type { UserProfile } from '../types';
+import DiseaseRiskPrognosis from './DiseaseRiskPrognosis';
 import { t } from '../lib/lang';
 
 interface SurveyReportProps {
@@ -268,6 +269,18 @@ export default function SurveyReport({
       )}
       {report?.klinikXulosa && (
         <ReportBlock title="Klinik xulosa" content={report.klinikXulosa} />
+      )}
+
+      {report && (
+        <DiseaseRiskPrognosis
+          input={{
+            riskFoizi: report.riskFoizi,
+            tmi: report.tmi ?? undefined,
+            answers: localSurvey.answers,
+            chekish: String(localSurvey.answers['44'] ?? '').includes('Hozirda chekaman'),
+            jins: String(localSurvey.answers['5'] ?? ''),
+          }}
+        />
       )}
     </div>
   );

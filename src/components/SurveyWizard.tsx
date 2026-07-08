@@ -9,6 +9,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { getSurveyQuestions, submitSurvey } from '../lib/api';
+import { applyQuestionText } from '../lib/questionOverrides';
 import { formatApiError, isQuestionVisible } from '../lib/surveyUtils';
 import type { ClinicalData, Question, Questionnaire, SurveySubmitResponse } from '../types/api';
 import type { UserProfile } from '../types';
@@ -378,7 +379,7 @@ export default function SurveyWizard({
           visibleQuestions.map((q) => (
             <div key={String(q.id)} className="space-y-2">
               <label className="block text-sm font-semibold text-slate-800">
-                {q.text}
+                {applyQuestionText(q.id, q.text)}
                 {q.required && <span className="text-red-500 ml-1">*</span>}
               </label>
               {q.description && <p className="text-xs text-slate-500">{q.description}</p>}

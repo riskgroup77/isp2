@@ -52,6 +52,7 @@ import DoctorDashboard from './components/DoctorDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import SurveyWizard from './components/SurveyWizard';
 import SurveyReport from './components/SurveyReport';
+import DiseaseRiskPrognosis from './components/DiseaseRiskPrognosis';
 import { t } from './lib/lang';
 import {
   advisorChat,
@@ -64,6 +65,7 @@ import {
   predictRisk,
 } from './lib/api';
 import { formatApiError, getRiskZoneStyle } from './lib/surveyUtils';
+import { exportJournalToExcel } from './lib/excelExport';
 import type { SurveyResponseOut, SurveySubmitResponse } from './types/api';
 
 // Default initial state
@@ -184,7 +186,10 @@ export default function App() {
       { nomi: 'Lisinopril', doza: '10 mg', ichildi: false },
       { nomi: 'Amlodipin', doza: '5 mg', ichildi: false }
     ] as { nomi: string; doza: string; ichildi: boolean }[],
-    qaydlar: ''
+    qaydlar: '',
+    yurilganMetr: '' as number | '',
+    ichilganSuvMl: '' as number | '',
+    uxquSoati: '' as number | '',
   });
   
   const [newMedNomi, setNewMedNomi] = useState('');
@@ -665,7 +670,10 @@ export default function App() {
       stress: journalForm.stress,
       alomatlar: [...journalForm.alomatlar],
       dorilar: journalForm.dorilar.map(d => ({ ...d })),
-      qaydlar: journalForm.qaydlar
+      qaydlar: journalForm.qaydlar,
+      yurilganMetr: journalForm.yurilganMetr !== '' ? Number(journalForm.yurilganMetr) : '',
+      ichilganSuvMl: journalForm.ichilganSuvMl !== '' ? Number(journalForm.ichilganSuvMl) : '',
+      uxquSoati: journalForm.uxquSoati !== '' ? Number(journalForm.uxquSoati) : '',
     };
 
     const updated = [newEntry, ...journalEntries];
@@ -703,7 +711,6 @@ export default function App() {
       return;
     }
     
-    // Header columns in Uzbek for clarity
     const headers = [
       "Sana",
       "Vaqt",
@@ -712,6 +719,9 @@ export default function App() {
       "Puls (zarba/min)",
       "Qondagi qand miqdori (mmol/l)",
       "Vazn (kg)",
+      "Yurilgan masofa (metr)",
+      "Ichilgan suyuqlik (ml)",
+      "Uxlash vaqti (soat)",
       "Uyqu sifati",
       "Stress darajasi",
       "Alomatlar",
@@ -744,6 +754,9 @@ export default function App() {
         e.puls,
         e.glyukoza !== '' ? e.glyukoza : "Kiritilmagan",
         e.vazn !== '' ? e.vazn : "Kiritilmagan",
+        e.yurilganMetr !== '' && e.yurilganMetr != null ? e.yurilganMetr : "Kiritilmagan",
+        e.ichilganSuvMl !== '' && e.ichilganSuvMl != null ? e.ichilganSuvMl : "Kiritilmagan",
+        e.uxquSoati !== '' && e.uxquSoati != null ? e.uxquSoati : "Kiritilmagan",
         e.uyqu === 'yaxshi' ? 'Yaxshi' : (e.uyqu === 'ortacha' ? 'O\'rtacha' : 'Yomon'),
         e.stress === 'past' ? 'Past' : (e.stress === 'ortacha' ? 'O\'rtacha' : 'Yuqori'),
         `"${alomatlarStr}"`,
@@ -763,6 +776,35 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const downloadJournalExcel = () => {
+    if (journalEntries.length === 0) {
+      alert("Hozircha kundalikka yozuvlar kiritilmagan.");
+      return;
+    }
+    try {
+      exportJournalToExcel(
+        journalEntries.map((e) => ({
+          Sana: e.sana,
+          Vaqt: e.vaqt,
+          'Sistolik (mmHg)': e.sistolik,
+          'Diastolik (mmHg)': e.diastolik,
+          'Puls (/min)': e.puls,
+          'Glyukoza (mmol/l)': e.glyukoza !== '' ? e.glyukoza : '',
+          'Vazn (kg)': e.vazn !== '' ? e.vazn : '',
+          'Yurilgan (metr)': e.yurilganMetr !== '' && e.yurilganMetr != null ? e.yurilganMetr : '',
+          'Suv (ml)': e.ichilganSuvMl !== '' && e.ichilganSuvMl != null ? e.ichilganSuvMl : '',
+          'Uxqu (soat)': e.uxquSoati !== '' && e.uxquSoati != null ? e.uxquSoati : '',
+          'Uyqu sifati': e.uyqu,
+          Stress: e.stress,
+          Alomatlar: e.alomatlar.join(', '),
+          Qaydlar: e.qaydlar,
+        }))
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Excel yuklab olishda xatolik.');
+    }
   };
 
   const handleAddMedication = () => {
@@ -2558,6 +2600,19 @@ export default function App() {
                     </div>
                   </div>
 
+                  <DiseaseRiskPrognosis
+                    input={{
+                      riskFoizi: riskResult.riskFoizi,
+                      tmi: riskResult.tmi,
+                      sistolik: formData.sistolik,
+                      diastolik: formData.diastolik,
+                      glyukoza: formData.glyukoza !== '' ? Number(formData.glyukoza) : undefined,
+                      chekish: formData.chekish === 'ha',
+                      yosh: formData.yosh,
+                      jins: formData.jins,
+                    }}
+                  />
+
                   {/* CLINICAL COMPLIANCE ANALYSIS (INNOVATION 4 DETAILED REPORT) */}
                   {riskResult.shaxsiyTavsiyalar.komplayensTahlili.nomutanosiblikKuzatildimi && (
                     <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-300 shadow-sm relative overflow-hidden">
@@ -3390,6 +3445,51 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* Kunlik faollik va uyqu */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-emerald-50/40 p-3 rounded-xl border border-emerald-100">
+                      <div>
+                        <label className="block text-[11px] font-bold text-emerald-800 uppercase tracking-wide mb-1">
+                          Yurilgan masofa (metr/kun)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Masalan: 5000"
+                          value={journalForm.yurilganMetr}
+                          onChange={(e) => setJournalForm({ ...journalForm, yurilganMetr: e.target.value !== '' ? parseInt(e.target.value) : '' })}
+                          className="w-full text-xs rounded border border-emerald-200 p-2 text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-emerald-800 uppercase tracking-wide mb-1">
+                          Ichilgan suyuqlik (ml/kun)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Masalan: 2000"
+                          value={journalForm.ichilganSuvMl}
+                          onChange={(e) => setJournalForm({ ...journalForm, ichilganSuvMl: e.target.value !== '' ? parseInt(e.target.value) : '' })}
+                          className="w-full text-xs rounded border border-emerald-200 p-2 text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-emerald-800 uppercase tracking-wide mb-1">
+                          Uxlash vaqti (soat)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          placeholder="Masalan: 7.5"
+                          value={journalForm.uxquSoati}
+                          onChange={(e) => setJournalForm({ ...journalForm, uxquSoati: e.target.value !== '' ? parseFloat(e.target.value) : '' })}
+                          className="w-full text-xs rounded border border-emerald-200 p-2 text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+
                     {/* CARDIAC SYMPTOMS */}
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
                       <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wide">
@@ -3731,7 +3831,15 @@ export default function App() {
                       </button>
 
                       <button
-                        onClick={() => setShowDoctorReport(true)}
+                        onClick={downloadJournalExcel}
+                        className="text-[11px] bg-blue-50 border border-blue-300 hover:bg-blue-100 text-blue-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer font-bold"
+                        title="Kundalik qaydlarini Excel formatida yuklab olish"
+                      >
+                        <FileDown className="w-3.5 h-3.5 text-blue-600" />
+                        Excel
+                      </button>
+
+                      <button
                         className="text-[11px] bg-indigo-50 border border-indigo-300 hover:bg-indigo-100 text-indigo-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer font-bold"
                         title="Shifokorga ko'rsatish uchun maxsus PDF kardiologik hisobot tayyorlash"
                       >
@@ -3825,6 +3933,27 @@ export default function App() {
                                 <span className="text-[10px] text-slate-400 uppercase font-bold block">Sog'lom vazn</span>
                                 <span className="text-sm font-bold text-slate-800 font-mono">
                                   ⚖️ {entry.vazn ? `${entry.vazn} kg` : 'Kiritilmagan'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
+                              <div>
+                                <span className="text-[10px] text-emerald-700 uppercase font-bold block">Yurilgan (metr)</span>
+                                <span className="text-sm font-bold text-slate-800">
+                                  {entry.yurilganMetr !== '' && entry.yurilganMetr != null ? `🚶 ${entry.yurilganMetr} m` : 'Kiritilmagan'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-emerald-700 uppercase font-bold block">Ichilgan suv (ml)</span>
+                                <span className="text-sm font-bold text-slate-800">
+                                  {entry.ichilganSuvMl !== '' && entry.ichilganSuvMl != null ? `💧 ${entry.ichilganSuvMl} ml` : 'Kiritilmagan'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-emerald-700 uppercase font-bold block">Uxlash (soat)</span>
+                                <span className="text-sm font-bold text-slate-800">
+                                  {entry.uxquSoati !== '' && entry.uxquSoati != null ? `😴 ${entry.uxquSoati} soat` : 'Kiritilmagan'}
                                 </span>
                               </div>
                             </div>
