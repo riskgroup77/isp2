@@ -28,18 +28,25 @@ export function getRiskZoneStyle(zona?: string | null) {
 
 export function formatApiError(err: unknown): string {
   if (err && typeof err === 'object' && 'response' in err) {
-    const axiosErr = err as { response?: { data?: { detail?: unknown }; status?: number } };
+    const axiosErr = err as { response?: { data?: { detail?: unknown }; status?: number }; code?: string; message?: string };
     const detail = axiosErr.response?.data?.detail;
     if (typeof detail === 'string') return detail;
     if (Array.isArray(detail)) {
       return detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('; ');
     }
-    if (axiosErr.response?.status === 401) return "Sessiya muddati tugagan. Qayta kiring.";
-    if (axiosErr.response?.status === 403) return "Ruxsat yo'q.";
-    if (axiosErr.response?.status === 429) return "Juda ko'p so'rov. Keyinroq urinib ko'ring.";
-    if (axiosErr.response?.status === 503) return 'AI vaqtincha ishlamayapti.';
-    if (axiosErr.response?.status === 504) return 'AI tahlil vaqti tugadi. Qayta urinib ko\'ring.';
+    const status = axiosErr.response?.status;
+    if (status === 401) return "Sessiya muddati tugagan. Qayta kiring.";
+    if (status === 403) return "Ruxsat yo'q.";
+    if (status === 429) return "Juda ko'p so'rov. Keyinroq urinib ko'ring.";
+    if (status === 502) return 'API vaqtincha ishlamayapti (502 Bad Gateway). Keyinroq urinib ko\'ring.';
+    if (status === 503) return 'AI vaqtincha ishlamayapti.';
+    if (status === 504) return 'AI tahlil vaqti tugadi. Qayta urinib ko\'ring.';
+    if (status && status >= 500) return `Server xatosi (${status}). Administrator bilan bog\'laning.`;
+    if (!axiosErr.response) {
+      if (axiosErr.code === 'ECONNABORTED') return 'So\'rov vaqti tugadi. Keyinroq urinib ko\'ring.';
+      return 'Server bilan aloqa yo\'q. Internet yoki API holatini tekshiring.';
+    }
   }
-  if (err instanceof Error) return err.message;
+  if (err instanceof Error && err.message) return err.message;
   return "Noma'lum xatolik yuz berdi.";
 }

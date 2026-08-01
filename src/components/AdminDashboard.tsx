@@ -11,6 +11,7 @@ import {
   Search,
   Pencil,
   Users,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   getAllSurveyResponses,
@@ -25,7 +26,10 @@ import type { UserProfile } from '../types';
 import SurveyReport from './SurveyReport';
 import SurveyAnalyticsPanel from './SurveyAnalyticsPanel';
 import QuestionEditor from './QuestionEditor';
+import ExcelAnalysisPanel from './ExcelAnalysisPanel';
+import ApiStatusBanner from './ApiStatusBanner';
 import { t } from '../lib/lang';
+import { useApiHealth } from '../lib/useApiHealth';
 
 interface AdminDashboardProps {
   adminUser: UserProfile;
@@ -40,11 +44,12 @@ export default function AdminDashboard({
   language = 'lotin',
   onLanguageChange,
 }: AdminDashboardProps) {
+  const { status: apiStatus, message: apiStatusMessage, retry: retryApiHealth } = useApiHealth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyResponseOut[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'dashboard' | 'analytics' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'analytics' | 'excel' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyResponseOut | null>(null);
   const [doctorIdInput, setDoctorIdInput] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -98,6 +103,7 @@ export default function AdminDashboard({
 
   const tabs = [
     { id: 'dashboard' as const, label: 'Statistika', icon: Activity },
+    { id: 'excel' as const, label: 'Excel tahlil', icon: FileSpreadsheet },
     { id: 'analytics' as const, label: "Qidiruv va Excel", icon: Search },
     { id: 'surveys' as const, label: "So'rovnomalar", icon: ClipboardList },
     { id: 'questions' as const, label: 'Anketa tahriri', icon: Pencil },
@@ -107,6 +113,7 @@ export default function AdminDashboard({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <ApiStatusBanner status={apiStatus} message={apiStatusMessage} onRetry={retryApiHealth} />
       <header className="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs text-amber-300 font-bold uppercase">Admin panel</p>
@@ -163,13 +170,15 @@ export default function AdminDashboard({
           ))}
         </div>
 
-        {errorMsg && (
+        {errorMsg && tab !== 'excel' && (
           <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
             {errorMsg}
           </div>
         )}
 
-        {loading ? (
+        {tab === 'excel' ? (
+          <ExcelAnalysisPanel language={language} />
+        ) : loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
           </div>

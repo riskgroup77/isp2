@@ -7,6 +7,7 @@ import type {
   DashboardStats,
   DoctorAdviceDraftResponse,
   DoctorAdviceSubmitResponse,
+  ExcelAnalysisResponse,
   PatientListItem,
   Questionnaire,
   RegisterRequest,
@@ -171,6 +172,34 @@ export async function getSystemLogs(): Promise<string[]> {
   return data;
 }
 
+const EXCEL_MAX_BYTES = 30 * 1024 * 1024;
+
+export async function analyzeExcel(
+  file: File,
+  izoh?: string
+): Promise<ExcelAnalysisResponse> {
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    throw new Error('Faqat .xlsx formatdagi Excel fayllar qabul qilinadi.');
+  }
+  if (file.size > EXCEL_MAX_BYTES) {
+    throw new Error('Fayl hajmi 30 MB dan oshmasligi kerak.');
+  }
+
+  const form = new FormData();
+  form.append('file', file);
+
+  const { data } = await apiClient.post<ExcelAnalysisResponse>(
+    '/api/admin/statistics/excel/analyze',
+    form,
+    {
+      params: izoh?.trim() ? { izoh: izoh.trim() } : undefined,
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180000,
+    }
+  );
+  return data;
+}
+
 // ── AI ────────────────────────────────────────────────
 
 export async function analyzeComplaint(matn: string): Promise<ComplaintAnalysisResponse> {
@@ -205,6 +234,15 @@ export async function doctorAdviceDraft(
 export async function predictRisk(payload: Record<string, unknown>) {
   const { data } = await apiClient.post('/api/ai/predict-risk', payload);
   return data;
+}
+
+export async function checkApiHealth(): Promise<boolean> {
+  try {
+    const { data } = await apiClient.get<{ status?: string }>('/health', { timeout: 10000 });
+    return data?.status === 'healthy' || data?.status === 'ok';
+  } catch {
+    return false;
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────

@@ -166,3 +166,69 @@ export interface DoctorAdviceSubmitResponse {
   id: string;
   status: string;
 }
+
+// ── Excel AI tahlil ───────────────────────────────────
+
+export type ManbaTuri =
+  | 'milliy_standart'
+  | 'xalqaro'
+  | 'ilmiy_adabiyot'
+  | 'statistika'
+  | 'gemini_tahlil';
+
+export interface ExcelVaraqInfo {
+  nomi: string;
+  qatorlarSoni: number;
+  ustunlar: string[];
+}
+
+export interface StatistikaXulosaBoLim {
+  boLim: string;
+  asosiyKoRsatkichlar: string[];
+  xulosa: string;
+}
+
+export interface ExcelTahlilFormula {
+  nomi: string;
+  formula: string;
+  izoh: string;
+  qoLlanilganQism: string;
+}
+
+export interface ExcelTahlilManba {
+  nomi: string;
+  turi: ManbaTuri | string;
+  havola: string | null;
+  izoh: string;
+}
+
+export interface ExcelTahlilActionItem {
+  bosqich?: string;
+  harakat?: string;
+  muddat?: string;
+  masul?: string;
+  [key: string]: unknown;
+}
+
+export interface ExcelTahlilTasir {
+  omil?: string;
+  tasir?: string;
+  foiz?: number | string;
+  [key: string]: unknown;
+}
+
+export interface ExcelAnalysisTahlil extends AIReport {
+  actionPlan?: ExcelTahlilActionItem[] | string[];
+  taxminiyTasir?: ExcelTahlilTasir[] | string[];
+}
+
+export interface ExcelAnalysisResponse {
+  faylNomi: string;
+  varaqlar: ExcelVaraqInfo[];
+  umumiyXulosa: string;
+  statistikaXulosasi: StatistikaXulosaBoLim[];
+  tahlil: ExcelAnalysisTahlil | null;
+  formulalar: ExcelTahlilFormula[];
+  manbalar: ExcelTahlilManba[];
+  aiXato: string | null;
+}

@@ -10,6 +10,7 @@ import {
   Sparkles,
   User,
   Users,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   doctorAdviceDraft,
@@ -22,7 +23,10 @@ import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
 import type { PatientListItem, SurveyResponseOut } from '../types/api';
 import type { UserProfile } from '../types';
 import SurveyReport from './SurveyReport';
+import ExcelAnalysisPanel from './ExcelAnalysisPanel';
+import ApiStatusBanner from './ApiStatusBanner';
 import { t } from '../lib/lang';
+import { useApiHealth } from '../lib/useApiHealth';
 
 interface DoctorDashboardProps {
   doctorUser: UserProfile;
@@ -37,6 +41,7 @@ export default function DoctorDashboard({
   language = 'lotin',
   onLanguageChange,
 }: DoctorDashboardProps) {
+  const { status: apiStatus, message: apiStatusMessage, retry: retryApiHealth } = useApiHealth();
   const [patients, setPatients] = useState<PatientListItem[]>([]);
   const [allSurveys, setAllSurveys] = useState<SurveyResponseOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +52,7 @@ export default function DoctorDashboard({
   const [newAdviceText, setNewAdviceText] = useState('');
   const [recipeJson, setRecipeJson] = useState('');
   const [submittingAdvice, setSubmittingAdvice] = useState(false);
+  const [viewMode, setViewMode] = useState<'patients' | 'excel'>('patients');
   const [draftLoading, setDraftLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -169,6 +175,7 @@ export default function DoctorDashboard({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <ApiStatusBanner status={apiStatus} message={apiStatusMessage} onRetry={retryApiHealth} />
       <header className="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <User className="w-8 h-8 text-indigo-300" />
@@ -211,6 +218,40 @@ export default function DoctorDashboard({
         </div>
       </header>
 
+      <div className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setViewMode('patients')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              viewMode === 'patients'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-white border border-slate-200 text-slate-600'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            {t('Bemorlar', language)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('excel')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              viewMode === 'excel'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-white border border-slate-200 text-slate-600'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Excel tahlil
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'excel' ? (
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pb-6">
+          <ExcelAnalysisPanel language={language} />
+        </div>
+      ) : (
       <div className="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
@@ -391,6 +432,7 @@ export default function DoctorDashboard({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

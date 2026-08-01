@@ -37,11 +37,13 @@ export default function SurveyAnalyticsPanel({
   const [draftAnswer, setDraftAnswer] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
 
   useEffect(() => {
+    setQuestionsError(null);
     getSurveyQuestions()
       .then((q) => setQuestions(q.questions))
-      .catch(() => {})
+      .catch((err) => setQuestionsError(formatApiError(err)))
       .finally(() => setLoadingQ(false));
   }, []);
 
@@ -90,6 +92,12 @@ export default function SurveyAnalyticsPanel({
 
   return (
     <div className="space-y-5">
+      {questionsError && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+          Savollar yuklanmadi: {questionsError}
+        </div>
+      )}
+
       {exportError && (
         <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex justify-between items-center">
           <span>{exportError}</span>

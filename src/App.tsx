@@ -53,11 +53,13 @@ import AdminDashboard from './components/AdminDashboard';
 import SurveyWizard from './components/SurveyWizard';
 import SurveyReport from './components/SurveyReport';
 import DiseaseRiskPrognosis from './components/DiseaseRiskPrognosis';
+import ApiStatusBanner from './components/ApiStatusBanner';
 import { t } from './lib/lang';
 import {
   advisorChat,
   analyzeComplaint,
   apiProfileToUser,
+  clearTokens,
   getMySurveys,
   getProfile,
   hasToken,
@@ -66,7 +68,9 @@ import {
 } from './lib/api';
 import { formatApiError, getRiskZoneStyle } from './lib/surveyUtils';
 import { exportJournalToExcel } from './lib/excelExport';
-import type { SurveyResponseOut, SurveySubmitResponse } from './types/api';
+import { apiReportToRiskAnalysisResult, questionnaireToPredictRiskPayload } from './lib/riskMapping';
+import { useApiHealth } from './lib/useApiHealth';
+import type { AIReport, SurveyResponseOut, SurveySubmitResponse } from './types/api';
 
 // Default initial state
 const defaultQuestionnaire: QuestionnaireData = {
@@ -147,17 +151,11 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 
 export default function App() {
   const [language, setLanguage] = useState<'lotin' | 'kirill'>('lotin');
+  const { status: apiStatus, message: apiStatusMessage, retry: retryApiHealth } = useApiHealth();
   
-  // Authentication & Session Persistence
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('soglik_portal_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-  const [authChecking, setAuthChecking] = useState(hasToken() && !currentUser);
+  // Authentication — faqat JWT orqali sessiya tiklanadi
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authChecking, setAuthChecking] = useState(hasToken());
 
   const [patientAdvices, setPatientAdvices] = useState<PatientAdvice[]>([]);
   const [apiSurveys, setApiSurveys] = useState<SurveyResponseOut[]>([]);
@@ -165,6 +163,7 @@ export default function App() {
   const [lastSubmitResult, setLastSubmitResult] = useState<SurveySubmitResponse | null>(null);
   const [historyViewId, setHistoryViewId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'screening' | 'innovations' | 'outcomes' | 'history' | 'journal' | 'advices'>('screening');
@@ -367,6 +366,7 @@ export default function App() {
 
   const loadApiSurveys = async () => {
     setHistoryLoading(true);
+    setHistoryError(null);
     try {
       const surveys = await getMySurveys();
       const sorted = [...surveys].sort(
@@ -375,6 +375,7 @@ export default function App() {
       setApiSurveys(sorted);
     } catch (e) {
       console.error('Failed to load surveys:', e);
+      setHistoryError(formatApiError(e));
     } finally {
       setHistoryLoading(false);
     }
@@ -386,7 +387,7 @@ export default function App() {
     }
   }, [activeTab, currentUser?.id]);
 
-  // Restore session from JWT on load
+  // Restore session from JWT on load — localStorage cache ishlatilmaydi
   useEffect(() => {
     const restore = async () => {
       if (!hasToken()) {
@@ -395,16 +396,18 @@ export default function App() {
       }
       try {
         const profile = await getProfile();
-        setCurrentUser(apiProfileToUser(profile) as UserProfile);
+        const user = apiProfileToUser(profile) as UserProfile;
+        setCurrentUser(user);
+        localStorage.setItem('soglik_portal_user', JSON.stringify(user));
       } catch {
+        clearTokens();
+        localStorage.removeItem('soglik_portal_user');
         setCurrentUser(null);
       } finally {
         setAuthChecking(false);
       }
     };
-    if (authChecking || (hasToken() && !currentUser)) {
-      restore();
-    }
+    restore();
   }, []);
 
   useEffect(() => {
@@ -597,28 +600,7 @@ export default function App() {
     setSelectedSurveyResult(result.response);
     setApiSurveys((prev) => [result.response, ...prev.filter((s) => s.id !== result.response.id)]);
     if (result.tahlil) {
-      const mapped: RiskAnalysisResult = {
-        tmi: result.tahlil.tmi ?? result.bmi ?? 0,
-        tmiKategoriya: result.tahlil.tmiKategoriya || '',
-        riskFoizi: result.tahlil.riskFoizi,
-        zona: (result.tahlil.zona as RiskAnalysisResult['zona']) || 'sariq',
-        hududiyStatistika: {
-          hududXavfi: result.tahlil.riskFoizi,
-          populyatsiyaEtalonBosim: '',
-          tavsiyaEtilganSkriningKuni: '',
-        },
-        faktorlar: result.tahlil.faktorlar || [],
-        shaxsiyTavsiyalar: {
-          kritikOmillar: [],
-          ovqatlanish: result.tahlil.shaxsiyTavsiyalar?.ovqatlanish ? [result.tahlil.shaxsiyTavsiyalar.ovqatlanish] : [],
-          jismoniyMashq: result.tahlil.shaxsiyTavsiyalar?.jismoniyFaollik ? [result.tahlil.shaxsiyTavsiyalar.jismoniyFaollik] : [],
-          tibbiyReja: result.tahlil.xulosaVaTavsiyalar?.tavsiyalar || [],
-          kutilayotganEffekt: [],
-          komplayensTahlili: { daraja: '', nomutanosiblikKuzatildimi: false, maslahat: '' },
-        },
-        klinikXulosa: result.tahlil.klinikXulosa || result.response.klinik_xulosa || '',
-      };
-      setRiskResult(mapped);
+      setRiskResult(apiReportToRiskAnalysisResult(result.tahlil, result.bmi));
     }
     loadApiSurveys();
     // Skrining sahifasida qoladi — arxivga avtomatik o'tmaydi
@@ -692,7 +674,10 @@ export default function App() {
       vazn: '',
       alomatlar: [],
       dorilar: prev.dorilar.map(d => ({ ...d, ichildi: false })),
-      qaydlar: ''
+      qaydlar: '',
+      yurilganMetr: '',
+      ichilganSuvMl: '',
+      uxquSoati: '',
     }));
   };
 
@@ -855,9 +840,11 @@ export default function App() {
     const dataToSubmit = customData || formData;
 
     try {
-      const data = await predictRisk(dataToSubmit as unknown as Record<string, unknown>);
-      setRiskResult(data as RiskAnalysisResult);
-      saveToHistory(dataToSubmit, data as RiskAnalysisResult);
+      const payload = questionnaireToPredictRiskPayload(dataToSubmit, currentUser);
+      const data = await predictRisk(payload);
+      const mapped = apiReportToRiskAnalysisResult(data as AIReport, (data as AIReport).tmi ?? null);
+      setRiskResult(mapped);
+      saveToHistory(dataToSubmit, mapped);
     } catch (err: unknown) {
       setErrorMsg(formatApiError(err));
     } finally {
@@ -997,7 +984,12 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} language={language} onLanguageChange={setLanguage} />;
+    return (
+      <>
+        <ApiStatusBanner status={apiStatus} message={apiStatusMessage} onRetry={retryApiHealth} />
+        <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} language={language} onLanguageChange={setLanguage} />
+      </>
+    );
   }
 
   if (currentUser.rol === 'shifokor') {
@@ -1010,6 +1002,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased flex flex-col lg:flex-row print:flex-col">
+      <ApiStatusBanner status={apiStatus} message={apiStatusMessage} onRetry={retryApiHealth} />
       
       {/* PUSH NOTIFICATION STYLE REMINDER MODAL */}
       {activeNotification && (
@@ -2984,6 +2977,16 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {historyError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Arxiv yuklanmadi</p>
+                  <p className="text-xs mt-0.5">{historyError}</p>
+                </div>
+              </div>
+            )}
 
             {historyLoading ? (
               <div className="flex justify-center py-16">
