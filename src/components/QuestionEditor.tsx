@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, RotateCcw, Save } from 'lucide-react';
 import { getSurveyQuestions } from '../lib/api';
 import {
-  applyQuestionText,
+  getQuestionDisplayText,
+  getQuestionDescription,
+  type SurveyLanguage,
+} from '../lib/questionnaireI18n';
+import {
   getQuestionOverrides,
   removeQuestionOverride,
   saveQuestionOverride,
@@ -64,8 +68,9 @@ export default function QuestionEditor() {
   return (
     <div className="space-y-4">
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
-        Anketa savollarining matnini tahrirlang. O'zgarishlar brauzerda saqlanadi va barcha
-        xodimlar uchun so'rovnomada ko'rinadi (serverdagi asl matn o'zgarmaydi).
+        Anketa savollarining lotin matnini tahrirlang. Kirill versiyasi backenddan{' '}
+        <code className="text-xs bg-amber-100 px-1 rounded">textCyrl</code> maydoni orqali keladi.
+        O&apos;zgarishlar brauzerda saqlanadi (serverdagi asl matn o&apos;zgarmaydi).
       </div>
 
       {savedMsg && (
@@ -81,6 +86,7 @@ export default function QuestionEditor() {
         {questions.map((q) => {
           const key = String(q.id);
           const isModified = edits[key] !== q.text;
+          const previewQ = { ...q, text: edits[key] || q.text };
           return (
             <div
               key={key}
@@ -102,9 +108,21 @@ export default function QuestionEditor() {
                 rows={2}
                 className="w-full p-3 rounded-xl border border-slate-200 text-sm"
               />
-              <p className="text-[10px] text-slate-400">
-                Ko'rinish: {applyQuestionText(q.id, edits[key] || q.text).slice(0, 80)}...
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px]">
+                <p className="text-slate-500 bg-slate-50 p-2 rounded-lg">
+                  <span className="font-bold text-slate-600">Lotin:</span>{' '}
+                  {getQuestionDisplayText(previewQ, 'lotin').slice(0, 100)}...
+                </p>
+                <p className="text-slate-500 bg-slate-50 p-2 rounded-lg">
+                  <span className="font-bold text-slate-600">Kirill:</span>{' '}
+                  {getQuestionDisplayText(previewQ, 'kirill').slice(0, 100)}...
+                </p>
+              </div>
+              {getQuestionDescription(q, 'kirill') && (
+                <p className="text-[10px] text-indigo-600">
+                  Backend kirill izoh: {getQuestionDescription(q, 'kirill')?.slice(0, 80)}...
+                </p>
+              )}
               <div className="flex gap-2">
                 <button
                   type="button"

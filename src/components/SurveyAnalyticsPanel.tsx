@@ -13,21 +13,28 @@ import {
   QUICK_FILTER_PRESETS,
   applyPresetWithExtras,
   filterSurveyResponses,
+  formatFilterAnswerLabel,
   getQuestionLabel,
   getRespondentName,
   type SurveyFilterRule,
 } from '../lib/surveyFilter';
+import {
+  getQuestionOptionPairs,
+  type SurveyLanguage,
+} from '../lib/questionnaireI18n';
 import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
 import type { Question, SurveyResponseOut } from '../types/api';
 
 interface SurveyAnalyticsPanelProps {
   surveys: SurveyResponseOut[];
   onSelectSurvey?: (survey: SurveyResponseOut) => void;
+  language?: SurveyLanguage;
 }
 
 export default function SurveyAnalyticsPanel({
   surveys,
   onSelectSurvey,
+  language = 'lotin',
 }: SurveyAnalyticsPanelProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loadingQ, setLoadingQ] = useState(true);
@@ -145,7 +152,7 @@ export default function SurveyAnalyticsPanel({
               <option value="">Tanlang...</option>
               {questions.map((q) => (
                 <option key={String(q.id)} value={String(q.id)}>
-                  #{q.id} — {q.text.slice(0, 50)}
+                  {getQuestionLabel(questions, q.id, language)}
                 </option>
               ))}
             </select>
@@ -159,9 +166,9 @@ export default function SurveyAnalyticsPanel({
                 className="w-full mt-1 p-2.5 rounded-xl border border-slate-200 text-sm"
               >
                 <option value="">Tanlang...</option>
-                {selectedQuestion.options.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                {getQuestionOptionPairs(selectedQuestion, language).map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
                   </option>
                 ))}
               </select>
@@ -192,7 +199,8 @@ export default function SurveyAnalyticsPanel({
                 key={i}
                 className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold"
               >
-                {getQuestionLabel(questions, f.questionId)} = {f.equals}
+                {getQuestionLabel(questions, f.questionId, language)} ={' '}
+                {formatFilterAnswerLabel(questions, f.questionId, f.equals, language)}
                 <button
                   type="button"
                   onClick={() => {

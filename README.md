@@ -2,6 +2,9 @@
 
 React + Vite frontend for [EnergoHealth-Predict](https://api.energohealth-predict.uz/docs) FastAPI backend.
 
+**Production:** https://energohealth-predict.uz  
+**API:** https://api.energohealth-predict.uz
+
 ## Setup
 
 1. `npm install`

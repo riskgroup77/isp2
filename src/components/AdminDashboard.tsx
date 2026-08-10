@@ -207,6 +207,7 @@ export default function AdminDashboard({
             {tab === 'analytics' && (
               <SurveyAnalyticsPanel
                 surveys={surveys}
+                language={language}
                 onSelectSurvey={(s) => {
                   setSelectedSurvey(s);
                   setTab('surveys');

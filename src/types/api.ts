@@ -12,19 +12,26 @@ export interface ShowIf {
 export interface Question {
   id: number | string;
   text: string;
+  textCyrl?: string | null;
   type: QuestionType;
   section: string;
+  sectionCyrl?: string | null;
   options: string[];
+  optionsCyrl?: string[] | null;
   required: boolean;
   description?: string | null;
+  descriptionCyrl?: string | null;
   showIf?: ShowIf | null;
 }
 
 export interface Questionnaire {
   version: string;
+  languages?: string[];
   title: string;
+  titleCyrl?: string | null;
   totalQuestions: number;
   sections: string[];
+  sectionsCyrl?: string[] | null;
   questions: Question[];
 }
 

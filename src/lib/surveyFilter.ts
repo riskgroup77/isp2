@@ -1,4 +1,9 @@
 import type { Question, SurveyResponseOut } from '../types/api';
+import {
+  getQuestionDisplayText,
+  getOptionDisplayLabel,
+  type SurveyLanguage,
+} from './questionnaireI18n';
 
 export interface SurveyFilterRule {
   questionId: string | number;
@@ -97,7 +102,24 @@ export function applyPresetWithExtras(
   return filtered;
 }
 
-export function getQuestionLabel(questions: Question[], questionId: string | number): string {
+export function getQuestionLabel(
+  questions: Question[],
+  questionId: string | number,
+  lang: SurveyLanguage = 'lotin'
+): string {
   const q = questions.find((x) => String(x.id) === String(questionId));
-  return q ? `#${q.id} — ${q.text.slice(0, 40)}` : `#${questionId}`;
+  if (!q) return `#${questionId}`;
+  const text = getQuestionDisplayText(q, lang);
+  return `#${q.id} — ${text.slice(0, 40)}`;
+}
+
+export function formatFilterAnswerLabel(
+  questions: Question[],
+  questionId: string | number,
+  answer: string | undefined,
+  lang: SurveyLanguage = 'lotin'
+): string {
+  if (!answer) return '';
+  const q = questions.find((x) => String(x.id) === String(questionId));
+  return getOptionDisplayLabel(q, answer, lang);
 }

@@ -9,7 +9,14 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { getSurveyQuestions, submitSurvey } from '../lib/api';
-import { applyQuestionText } from '../lib/questionOverrides';
+import {
+  getConsentValue,
+  getLocalizedSection,
+  getQuestionDescription,
+  getQuestionDisplayText,
+  getQuestionnaireTitle,
+  getQuestionOptionPairs,
+} from '../lib/questionnaireI18n';
 import { formatApiError, isQuestionVisible } from '../lib/surveyUtils';
 import type { ClinicalData, Question, Questionnaire, SurveySubmitResponse } from '../types/api';
 import type { UserProfile } from '../types';
@@ -76,14 +83,20 @@ export default function SurveyWizard({
     setAnswers((prev) => ({ ...prev, [String(id)]: value }));
   };
 
-  const toggleMulti = (id: string | number, option: string) => {
+  const toggleMulti = (id: string | number, optionValue: string) => {
     const key = String(id);
     const current = Array.isArray(answers[key]) ? (answers[key] as string[]) : [];
-    const next = current.includes(option)
-      ? current.filter((o) => o !== option)
-      : [...current, option];
+    const next = current.includes(optionValue)
+      ? current.filter((o) => o !== optionValue)
+      : [...current, optionValue];
     setAnswer(id, next);
   };
+
+  const consentQuestion = useMemo(
+    () => questionnaire?.questions.find((q) => String(q.id) === '1'),
+    [questionnaire]
+  );
+  const consentValue = consentQuestion ? getConsentValue(consentQuestion) : 'Roziman';
 
   const validateStep = (): string | null => {
     if (isClinicalStep) {
@@ -96,13 +109,19 @@ export default function SurveyWizard({
       if (!q.required) continue;
       const val = answers[String(q.id)];
       if (q.type === 'multi_choice') {
-        if (!Array.isArray(val) || val.length === 0) return `"${q.text.slice(0, 60)}..." — javob tanlang`;
+        if (!Array.isArray(val) || val.length === 0) {
+          return `"${getQuestionDisplayText(q, language).slice(0, 60)}..." — ${t('javob tanlang', language)}`;
+        }
       } else if (val === undefined || val === null || val === '') {
-        return `"${q.text.slice(0, 60)}..." — majburiy savol`;
+        return `"${getQuestionDisplayText(q, language).slice(0, 60)}..." — ${t('majburiy savol', language)}`;
       }
     }
     if (currentStep === 'Kirish' || stepIndex === 0) {
-      if (answers['1'] !== 'Roziman') return 'Davom etish uchun rozilik bering (Roziman)';
+      if (answers['1'] !== consentValue) {
+        return language === 'kirill'
+          ? 'Давом etish uchun rozilik bering (Розиман)'
+          : "Davom etish uchun rozilik bering (Roziman)";
+      }
     }
     return null;
   };
@@ -128,8 +147,8 @@ export default function SurveyWizard({
       setErrorMsg(err);
       return;
     }
-    if (answers['1'] !== 'Roziman') {
-      setErrorMsg('Rozilik berilmagan');
+    if (answers['1'] !== consentValue) {
+      setErrorMsg(language === 'kirill' ? 'Розilik berilmagan' : 'Rozilik berilmagan');
       return;
     }
 
@@ -160,15 +179,16 @@ export default function SurveyWizard({
   const renderQuestion = (q: Question) => {
     const key = String(q.id);
     const val = answers[key];
+    const optionPairs = getQuestionOptionPairs(q, language);
 
     if (q.type === 'single_choice') {
       return (
         <div className="space-y-2">
-          {q.options.map((opt) => (
+          {optionPairs.map(({ value, label }) => (
             <label
-              key={opt}
+              key={value}
               className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                val === opt
+                val === value
                   ? 'border-emerald-500 bg-emerald-50/60'
                   : 'border-slate-200 hover:border-slate-300'
               }`}
@@ -176,11 +196,11 @@ export default function SurveyWizard({
               <input
                 type="radio"
                 name={`q-${key}`}
-                checked={val === opt}
-                onChange={() => setAnswer(q.id, opt)}
+                checked={val === value}
+                onChange={() => setAnswer(q.id, value)}
                 className="accent-emerald-600"
               />
-              <span className="text-sm text-slate-700">{opt}</span>
+              <span className="text-sm text-slate-700">{label}</span>
             </label>
           ))}
         </div>
@@ -191,22 +211,22 @@ export default function SurveyWizard({
       const selected = Array.isArray(val) ? (val as string[]) : [];
       return (
         <div className="space-y-2">
-          {q.options.map((opt) => (
+          {optionPairs.map(({ value, label }) => (
             <label
-              key={opt}
+              key={value}
               className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                selected.includes(opt)
+                selected.includes(value)
                   ? 'border-emerald-500 bg-emerald-50/60'
                   : 'border-slate-200 hover:border-slate-300'
               }`}
             >
               <input
                 type="checkbox"
-                checked={selected.includes(opt)}
-                onChange={() => toggleMulti(q.id, opt)}
+                checked={selected.includes(value)}
+                onChange={() => toggleMulti(q.id, value)}
                 className="accent-emerald-600"
               />
-              <span className="text-sm text-slate-700">{opt}</span>
+              <span className="text-sm text-slate-700">{label}</span>
             </label>
           ))}
         </div>
@@ -271,9 +291,11 @@ export default function SurveyWizard({
             <ClipboardList className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-extrabold text-slate-800">{questionnaire.title}</h3>
+            <h3 className="font-extrabold text-slate-800">
+              {getQuestionnaireTitle(questionnaire, language)}
+            </h3>
             <p className="text-xs text-slate-500">
-              {questionnaire.totalQuestions} savol · {steps.length} qadam
+              {questionnaire.totalQuestions} {t('savol', language)} · {steps.length} {t('qadam', language)}
             </p>
           </div>
         </div>
@@ -285,12 +307,14 @@ export default function SurveyWizard({
               className={`shrink-0 h-1.5 rounded-full transition-all ${
                 i <= stepIndex ? 'bg-emerald-500 w-8' : 'bg-slate-200 w-4'
               }`}
-              title={s === CLINICAL_STEP ? 'Klinik o\'lchovlar' : s}
+              title={isClinicalStep ? t("Klinik o'lchovlar", language) : getLocalizedSection(questionnaire, currentStep, language)}
             />
           ))}
         </div>
         <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mt-2">
-          {isClinicalStep ? t('Klinik o\'lchovlar', language) : currentStep}
+          {isClinicalStep
+            ? t("Klinik o'lchovlar", language)
+            : getLocalizedSection(questionnaire, currentStep, language)}
         </p>
       </div>
 
@@ -376,16 +400,19 @@ export default function SurveyWizard({
             </div>
           </div>
         ) : (
-          visibleQuestions.map((q) => (
+          visibleQuestions.map((q) => {
+            const description = getQuestionDescription(q, language);
+            return (
             <div key={String(q.id)} className="space-y-2">
               <label className="block text-sm font-semibold text-slate-800">
-                {applyQuestionText(q.id, q.text)}
+                {getQuestionDisplayText(q, language)}
                 {q.required && <span className="text-red-500 ml-1">*</span>}
               </label>
-              {q.description && <p className="text-xs text-slate-500">{q.description}</p>}
+              {description && <p className="text-xs text-slate-500">{description}</p>}
               {renderQuestion(q)}
             </div>
-          ))
+            );
+          })
         )}
 
         {submitting && (
