@@ -10,23 +10,26 @@ import {
   ShieldAlert,
   Search,
   Pencil,
+  Play,
   Users,
   FileSpreadsheet,
 } from 'lucide-react';
 import {
   getAllSurveyResponses,
   getDashboardStats,
+  getSurveyQuestions,
   getSystemLogs,
   logout,
   verifyDoctor,
 } from '../lib/api';
 import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
-import type { DashboardStats, SurveyResponseOut } from '../types/api';
+import type { DashboardStats, Questionnaire, SurveyResponseOut } from '../types/api';
 import type { UserProfile } from '../types';
 import SurveyReport from './SurveyReport';
 import SurveyAnalyticsPanel from './SurveyAnalyticsPanel';
 import QuestionEditor from './QuestionEditor';
 import ExcelAnalysisPanel from './ExcelAnalysisPanel';
+import AdminBulkSurveyPanel from './AdminBulkSurveyPanel';
 import ApiStatusBanner from './ApiStatusBanner';
 import { t } from '../lib/lang';
 import { useApiHealth } from '../lib/useApiHealth';
@@ -49,7 +52,8 @@ export default function AdminDashboard({
   const [surveys, setSurveys] = useState<SurveyResponseOut[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'dashboard' | 'analytics' | 'excel' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'analytics' | 'excel' | 'bulk' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
+  const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null);
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyResponseOut | null>(null);
   const [doctorIdInput, setDoctorIdInput] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -77,6 +81,7 @@ export default function AdminDashboard({
 
   useEffect(() => {
     loadAll();
+    getSurveyQuestions().then(setQuestionnaire).catch(() => {});
   }, []);
 
   const handleLogout = async () => {
@@ -104,6 +109,7 @@ export default function AdminDashboard({
   const tabs = [
     { id: 'dashboard' as const, label: 'Statistika', icon: Activity },
     { id: 'excel' as const, label: 'Excel tahlil', icon: FileSpreadsheet },
+    { id: 'bulk' as const, label: 'Bulk anketa', icon: Play },
     { id: 'analytics' as const, label: "Qidiruv va Excel", icon: Search },
     { id: 'surveys' as const, label: "So'rovnomalar", icon: ClipboardList },
     { id: 'questions' as const, label: 'Anketa tahriri', icon: Pencil },
@@ -178,6 +184,8 @@ export default function AdminDashboard({
 
         {tab === 'excel' ? (
           <ExcelAnalysisPanel language={language} />
+        ) : tab === 'bulk' ? (
+          <AdminBulkSurveyPanel questionnaire={questionnaire} onComplete={loadAll} />
         ) : loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />

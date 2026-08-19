@@ -18,6 +18,7 @@ import { UserProfile, UserRole } from '../types';
 import { login as apiLogin, register as apiRegister, getProfile, apiProfileToUser } from '../lib/api';
 import { formatApiError } from '../lib/surveyUtils';
 import { t } from '../lib/lang';
+import { APP_BRAND, APP_TAGLINE, APP_DISCLAIMER } from '../lib/branding';
 
 interface AuthScreenProps {
   onAuthSuccess: (user: UserProfile) => void;
@@ -172,9 +173,12 @@ export default function AuthScreen({ onAuthSuccess, language = 'lotin', onLangua
         <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center mx-auto text-white shadow">
           <Heart className="w-6 h-6 shrink-0" />
         </div>
-        <h2 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wide leading-relaxed">
-          {t("Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali", language)}
+        <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+          {APP_BRAND}
         </h2>
+        <p className="text-[10px] sm:text-xs font-semibold text-slate-200 uppercase tracking-wide leading-relaxed mt-2 max-w-sm mx-auto">
+          {t(APP_TAGLINE, language)}
+        </p>
       </div>
 
       {/* Tabs list triggers */}
@@ -395,7 +399,7 @@ export default function AuthScreen({ onAuthSuccess, language = 'lotin', onLangua
               <span>{t("YUridik ogohlantirish (Medical Disclaimer)", language)}</span>
             </div>
             <p className="text-[10.5px] leading-relaxed text-slate-700 font-medium">
-              {t("Mazkur tizim kardiologik xavflarni prognozlovchi yordamchi ilmiy portal bo'lib, yakuniy tashxis qo'yish shifokor nazorati ostida amalga oshirilishi shart.", language)}
+              {t(APP_DISCLAIMER, language)}
             </p>
           </div>
 

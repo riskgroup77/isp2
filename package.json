@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "start": "vite preview --host 0.0.0.0",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "bulk:register": "python scripts/bulk_register_workers.py",
+    "bulk:surveys": "python scripts/bulk_submit_surveys.py"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

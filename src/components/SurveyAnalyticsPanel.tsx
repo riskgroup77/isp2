@@ -8,7 +8,9 @@ import {
   X,
 } from 'lucide-react';
 import { getSurveyQuestions } from '../lib/api';
+import { buildSummaryStats, enrichSurveys, type StudyGroup } from '../lib/anketaStatistics';
 import { exportSurveysToExcel } from '../lib/excelExport';
+import { exportFullStatisticalExcel } from '../lib/statisticalExport';
 import {
   QUICK_FILTER_PRESETS,
   applyPresetWithExtras,
@@ -43,6 +45,7 @@ export default function SurveyAnalyticsPanel({
   const [draftQuestionId, setDraftQuestionId] = useState('');
   const [draftAnswer, setDraftAnswer] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [exportingFull, setExportingFull] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
 
@@ -96,6 +99,28 @@ export default function SurveyAnalyticsPanel({
       setExporting(false);
     }
   };
+
+  const handleFullExport = () => {
+    setExportError(null);
+    const dataToExport = resultsForTable;
+    if (dataToExport.length === 0) {
+      setExportError("To'liq tahlil uchun natijalar yo'q.");
+      return;
+    }
+    setExportingFull(true);
+    try {
+      exportFullStatisticalExcel(dataToExport, questions);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'To\'liq tahlil Excel yuklab olishda xatolik.');
+    } finally {
+      setExportingFull(false);
+    }
+  };
+
+  const summaryPreview = useMemo(() => {
+    if (resultsForTable.length === 0) return null;
+    return buildSummaryStats(enrichSurveys(resultsForTable));
+  }, [resultsForTable]);
 
   return (
     <div className="space-y-5">
@@ -227,23 +252,67 @@ export default function SurveyAnalyticsPanel({
         </div>
       </div>
 
+      {summaryPreview && (
+        <div className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-2xl border border-emerald-200/60 p-5 space-y-3">
+          <p className="text-xs font-bold uppercase text-emerald-800 tracking-wider">
+            Umumiy tahlil (anketa natijasiga yaqin)
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="bg-white/80 rounded-xl p-3 border border-white">
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Jami</p>
+              <p className="text-xl font-black text-slate-800">{summaryPreview.jami}</p>
+            </div>
+            <div className="bg-white/80 rounded-xl p-3 border border-white">
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Hodisa guruhi</p>
+              <p className="text-xl font-black text-orange-700">{summaryPreview.hodisaSoni} ({summaryPreview.hodisaFoiz}%)</p>
+            </div>
+            <div className="bg-white/80 rounded-xl p-3 border border-white">
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Nazorat guruhi</p>
+              <p className="text-xl font-black text-emerald-700">{summaryPreview.nazoratSoni} ({summaryPreview.nazoratFoiz}%)</p>
+            </div>
+            <div className="bg-white/80 rounded-xl p-3 border border-white">
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Top kasallik</p>
+              <p className="text-xs font-bold text-slate-800 leading-snug">
+                {summaryPreview.anketaStructure[0]?.nomi.split('(')[0].trim() || '—'}
+                {' '}({summaryPreview.anketaStructure[0]?.foiz.toFixed(1)}%)
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-bold text-slate-800">
           Natijalar: {resultsForTable.length}
         </h3>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting || resultsForTable.length === 0}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50"
-        >
-          {exporting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <FileSpreadsheet className="w-4 h-4" />
-          )}
-          Excel
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || exportingFull || resultsForTable.length === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50"
+          >
+            {exporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4" />
+            )}
+            Excel
+          </button>
+          <button
+            type="button"
+            onClick={handleFullExport}
+            disabled={exporting || exportingFull || resultsForTable.length === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-700 text-white text-sm font-bold disabled:opacity-50"
+          >
+            {exportingFull ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4" />
+            )}
+            To&apos;liq tahlil Excel
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
@@ -251,6 +320,7 @@ export default function SurveyAnalyticsPanel({
           <thead className="bg-slate-50 border-b">
             <tr>
               <th className="text-left p-3 font-bold text-slate-600">F.I.SH.</th>
+              <th className="text-left p-3 font-bold text-slate-600">Guruh</th>
               <th className="text-left p-3 font-bold text-slate-600">XAVF %</th>
               <th className="text-left p-3 font-bold text-slate-600">ZONA</th>
               <th className="text-left p-3 font-bold text-slate-600 min-w-[200px]">KLINIK XULOSA</th>
@@ -260,6 +330,7 @@ export default function SurveyAnalyticsPanel({
             {resultsForTable.map((s) => {
               const style = getRiskZoneStyle(s.risk_zonasi);
               const tahlil = s.ai_response;
+              const guruh: StudyGroup = enrichSurveys([s])[0]?.guruh || 'nazorat';
               return (
                 <tr
                   key={s.id}
@@ -268,6 +339,13 @@ export default function SurveyAnalyticsPanel({
                 >
                   <td className="p-3 font-semibold text-slate-800">
                     {getRespondentName(s)}
+                  </td>
+                  <td className="p-3">
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                      guruh === 'hodisa' ? 'bg-orange-100 text-orange-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {guruh}
+                    </span>
                   </td>
                   <td className="p-3 font-mono font-bold" style={{ color: style.color }}>
                     {tahlil?.riskFoizi ?? s.score_total}%

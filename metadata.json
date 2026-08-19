@@ -1,6 +1,6 @@
 {
-  "name": "Intellektual Salomatlik Platformasi",
-  "description": "Xronik noinfeksion kasalliklar xavfini aniqlash, bashorat qilish va Fergana vodiysi aholisi uchun shaxsiylashtirilgan profilaktik tibbiy-maslahat axborot tizimi",
+  "name": "EnergoHealth-Predict",
+  "description": "Korxona xodimlari salomatligi va salomatlik xavfini aniqlash hamda prognozlash axborot tizimi (energohealth-predict.uz)",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -55,6 +55,7 @@ import SurveyReport from './components/SurveyReport';
 import DiseaseRiskPrognosis from './components/DiseaseRiskPrognosis';
 import ApiStatusBanner from './components/ApiStatusBanner';
 import { t } from './lib/lang';
+import { APP_BRAND, APP_DISCLAIMER, APP_FOOTER_COPY } from './lib/branding';
 import {
   advisorChat,
   analyzeComplaint,
@@ -1313,7 +1314,7 @@ export default function App() {
                 <div>
                   <h4 className="font-extrabold text-slate-800 uppercase mb-1">{t("Yuridik ogohlantirish (Medical Disclaimer)", language)} / {t("DIAGNOSTIK BILDIRISHNOMA", language)}:</h4>
                   <p className="font-semibold text-slate-900 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-1">
-                    {t("Mazkur tizim kardiologik xavflarni prognozlovchi yordamchi ilmiy portal bo'lib, yakuniy tashxis qo'yish shifokor nazorati ostida amalga oshirilishi shart.", language)}
+                    {t(APP_DISCLAIMER, language)}
                   </p>
                 </div>
                 <div className="flex flex-col justify-end items-end space-y-2 mt-4 sm:mt-0">
@@ -1449,7 +1450,7 @@ export default function App() {
               <Heart className="w-4 h-4 fill-red-500 text-red-500" />
             </div>
             <span className="font-extrabold text-xs text-slate-800 truncate pr-1 max-w-[140px] uppercase">
-              {t("Intellektual Salom...", language)}
+              {APP_BRAND}
             </span>
           </div>
           <button className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition border border-slate-200">
@@ -1524,7 +1525,7 @@ export default function App() {
             <span>{t("Yuridik Ogohlantirish", language)}</span>
           </div>
           <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
-            {t("Mazkur tizim kardiologik xavflarni prognozlovchi yordamchi ilmiy portal bo'lib, yakuniy tashxis qo'yish shifokor nazorati ostida amalga oshirilishi shart.", language)}
+            {t(APP_DISCLAIMER, language)}
           </p>
         </div>
 
@@ -1536,7 +1537,7 @@ export default function App() {
         {/* TOP HEADER BAR IN MAIN AREA */}
         <div className="flex flex-col sm:flex-row items-center justify-between pb-4 border-b border-slate-200 mb-6 gap-4 print:hidden">
           <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">
-            {t("Intellektual Salomatlik Platformasi", language)}
+            {APP_BRAND}
           </h1>
           
           <div className="flex flex-wrap items-center gap-4">
@@ -1602,7 +1603,7 @@ export default function App() {
             </div>
           </div>
           <div className="mt-3 bg-amber-50 p-3 rounded-lg border border-amber-300 text-xs text-amber-950">
-            <b>{t("Yuridik ogohlantirish (Medical Disclaimer)", language)}:</b> {t("Mazkur tizim kardiologik xavflarni prognozlovchi yordamchi ilmiy portal bo'lib, yakuniy tashxis qo'yish shifokor nazorati ostida amalga oshirilishi shart.", language)}
+            <b>{t("Yuridik ogohlantirish (Medical Disclaimer)", language)}:</b> {t(APP_DISCLAIMER, language)}
           </div>
         </div>
 
@@ -4089,11 +4090,11 @@ export default function App() {
       {/* FOOTER & DISCLAIMER */}
       <footer className="max-w-7xl mx-auto px-4 mt-12 border-t border-slate-200 pt-6 text-center text-slate-500 space-y-3 print:hidden">
         <p className="text-xs">
-          © 2026 Intellektual Salomatlik Axborot Tizimi. Farg'ona Vodiysi profiling va kardiologik so'nggi ma'lumotlar bazasi zaxirasi.
+          © 2026 {APP_BRAND}. {t(APP_FOOTER_COPY, language)}
         </p>
         <div className="bg-slate-200/50 p-4 rounded-lg max-w-4xl mx-auto text-[11px] leading-relaxed text-slate-600 border border-slate-300/60">
           <span className="font-extrabold uppercase text-slate-700 block mb-1">Muhim Ogohlantirish (Medical Disclaimer)</span>
-          Ushbu tizim klinik diagnostika kuchi bo'lgan shaxsiy vrach yoki kardiolog tavsiyalarini mutlaq o'rnini bosa olmaydi. Tavsiyalar faqat profilaktika, xavf kamaytirish va ilmiy dissertatsiya o'quv model mantiqlari doirasida beriladi. Sog'lig'ingiz yomonlashganda, ko'krak qisishining o'tkir bosqichida zudlik bilan shoshilinch tez tibbiy yordamga (103) murojaat qilishingiz shart.
+          Ushbu tizim klinika emas va shaxsiy vrach yoki kardiolog tavsiyalarini o'rnini bosa olmaydi. Natijalar faqat xavf baholash va profilaktik ma'lumot uchun beriladi. Shoshilinch holatda 103 ga murojaat qiling.
         </div>
       </footer>
       </div>
