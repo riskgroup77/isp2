@@ -1,6 +1,6 @@
 {
-  "name": "EnergoHealth-Predict",
-  "description": "Korxona xodimlari salomatligi va salomatlik xavfini aniqlash hamda prognozlash axborot tizimi (energohealth-predict.uz)",
+  "name": "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali",
+  "description": "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali (energohealth-predict.uz)",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

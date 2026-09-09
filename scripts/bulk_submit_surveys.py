@@ -44,7 +44,7 @@ def resolve_excel_path(custom: Path | None = None) -> Path:
 
 
 def http_json(method: str, path: str, payload: dict | None = None, token: str | None = None) -> dict:
-    headers = {"Content-Type": "application/json", "User-Agent": "EnergoHealth-BulkSubmit/1.0"}
+    headers = {"Content-Type": "application/json", "User-Agent": "NKXMP-BulkSubmit/1.0"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     data = json.dumps(payload).encode() if payload is not None else None

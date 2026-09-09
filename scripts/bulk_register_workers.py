@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Excel ro'yxatidagi xodimlarni EnergoHealth-Predict API ga ro'yxatdan o'tkazish."""
+"""Excel ro'yxatidagi xodimlarni NKXMP (noinfeksion kardiologik xavf milliy portali) API ga ro'yxatdan o'tkazish."""
 
 from __future__ import annotations
 

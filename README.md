@@ -1,6 +1,6 @@
-# EnergoHealth-Predict Frontend
+# Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali
 
-React + Vite frontend for [EnergoHealth-Predict](https://api.energohealth-predict.uz/docs) FastAPI backend.
+React + Vite frontend for the national multi-role portal API ([FastAPI docs](https://api.energohealth-predict.uz/docs)).
 
 **Production:** https://energohealth-predict.uz  
 **API:** https://api.energohealth-predict.uz
@@ -25,4 +25,3 @@ React + Vite frontend for [EnergoHealth-Predict](https://api.energohealth-predic
 - Swagger: https://api.energohealth-predict.uz/docs
 - Auth: JWT Bearer token (`access_token` in localStorage)
 - Roles: `xodim`, `shifokor`, `admin`
-
