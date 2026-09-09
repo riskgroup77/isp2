@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { usePageTitle } from '../lib/usePageTitle';
 import { 
   Heart, 
   User, 
@@ -18,7 +19,7 @@ import { UserProfile, UserRole } from '../types';
 import { login as apiLogin, register as apiRegister, getProfile, apiProfileToUser } from '../lib/api';
 import { formatApiError } from '../lib/surveyUtils';
 import { t } from '../lib/lang';
-import { APP_BRAND, APP_TAGLINE, APP_DISCLAIMER } from '../lib/branding';
+import { APP_BRAND, APP_DISCLAIMER, APP_FOOTER_COPY, APP_TAGLINE } from '../lib/branding';
 
 interface AuthScreenProps {
   onAuthSuccess: (user: UserProfile) => void;
@@ -45,6 +46,8 @@ const FERGANA_REGIONS = [
 ];
 
 export default function AuthScreen({ onAuthSuccess, language = 'lotin', onLanguageChange }: AuthScreenProps) {
+  usePageTitle(language, t('Tizimga kirish', language));
+
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [login, setLogin] = useState('');
   const [parol, setParol] = useState('');
@@ -173,8 +176,8 @@ export default function AuthScreen({ onAuthSuccess, language = 'lotin', onLangua
         <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center mx-auto text-white shadow">
           <Heart className="w-6 h-6 shrink-0" />
         </div>
-        <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
-          {APP_BRAND}
+        <h2 className="text-sm sm:text-base font-black text-white tracking-tight leading-snug px-2">
+          {t(APP_BRAND, language)}
         </h2>
         <p className="text-[10px] sm:text-xs font-semibold text-slate-200 uppercase tracking-wide leading-relaxed mt-2 max-w-sm mx-auto">
           {t(APP_TAGLINE, language)}
@@ -419,6 +422,9 @@ export default function AuthScreen({ onAuthSuccess, language = 'lotin', onLangua
         </div>
       </div>
 
+      <p className="px-6 pb-5 text-[9px] text-center text-slate-400 leading-relaxed border-t border-slate-100 pt-3">
+        © 2026 {t(APP_BRAND, language)}. {t(APP_FOOTER_COPY, language)}
+      </p>
     </div>
   );
 }

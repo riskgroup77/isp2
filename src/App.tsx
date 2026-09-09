@@ -55,7 +55,8 @@ import SurveyReport from './components/SurveyReport';
 import DiseaseRiskPrognosis from './components/DiseaseRiskPrognosis';
 import ApiStatusBanner from './components/ApiStatusBanner';
 import { t } from './lib/lang';
-import { APP_BRAND, APP_DISCLAIMER, APP_FOOTER_COPY } from './lib/branding';
+import { APP_BRAND, APP_CARD_TITLE, APP_DISCLAIMER, APP_FOOTER_COPY } from './lib/branding';
+import { usePageTitle } from './lib/usePageTitle';
 import {
   advisorChat,
   analyzeComplaint,
@@ -152,6 +153,7 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 
 export default function App() {
   const [language, setLanguage] = useState<'lotin' | 'kirill'>('lotin');
+  usePageTitle(language);
   const { status: apiStatus, message: apiStatusMessage, retry: retryApiHealth } = useApiHealth();
   
   // Authentication — faqat JWT orqali sessiya tiklanadi
@@ -975,10 +977,13 @@ export default function App() {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center space-y-3">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 px-4">
+        <div className="text-center space-y-4 max-w-lg">
+          <p className="text-xs sm:text-sm font-bold text-slate-700 leading-snug">
+            {t(APP_BRAND, language)}
+          </p>
           <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-slate-600">Sessiya tekshirilmoqda...</p>
+          <p className="text-sm text-slate-600">{t('Sessiya tekshirilmoqda...', language)}</p>
         </div>
       </div>
     );
@@ -986,10 +991,12 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <>
+      <div className="min-h-screen bg-slate-100 flex flex-col">
         <ApiStatusBanner status={apiStatus} message={apiStatusMessage} onRetry={retryApiHealth} />
-        <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} language={language} onLanguageChange={setLanguage} />
-      </>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} language={language} onLanguageChange={setLanguage} />
+        </div>
+      </div>
     );
   }
 
@@ -1449,8 +1456,8 @@ export default function App() {
             <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-500">
               <Heart className="w-4 h-4 fill-red-500 text-red-500" />
             </div>
-            <span className="font-extrabold text-xs text-slate-800 truncate pr-1 max-w-[140px] uppercase">
-              {APP_BRAND}
+            <span className="font-extrabold text-[9px] leading-tight text-slate-800 pr-1 max-w-[170px] uppercase">
+              {t(APP_BRAND, language)}
             </span>
           </div>
           <button className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition border border-slate-200">
@@ -1536,8 +1543,8 @@ export default function App() {
 
         {/* TOP HEADER BAR IN MAIN AREA */}
         <div className="flex flex-col sm:flex-row items-center justify-between pb-4 border-b border-slate-200 mb-6 gap-4 print:hidden">
-          <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">
-            {APP_BRAND}
+          <h1 className="text-base md:text-xl font-black text-slate-800 tracking-tight leading-snug max-w-3xl">
+            {t(APP_BRAND, language)}
           </h1>
           
           <div className="flex flex-wrap items-center gap-4">
@@ -1593,7 +1600,7 @@ export default function App() {
         <div className="hidden print:block bg-white p-6 border-b-2 border-slate-950 mb-6 text-black">
           <div className="flex justify-between items-start border-b pb-4">
             <div>
-              <h2 className="text-xl font-bold uppercase">{t("INTELLEKTUAL SALOMATLIK PORTALI - KARTASI", language)}</h2>
+              <h2 className="text-xl font-bold uppercase">{t(APP_CARD_TITLE, language)}</h2>
               <p className="text-xs">{t("Farg'ona viloyati XNIZ erta aniqlash va profilaktik yo'riqnomalar model tizimi", language)}</p>
               <p className="text-xs text-slate-500">{t("Dissertatsiya amaliy tadbiq etilish natijasi", language)}</p>
             </div>
@@ -2961,7 +2968,7 @@ export default function App() {
             <div className="border-b pb-4 flex flex-wrap justify-between items-center gap-3">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-900 uppercase">Salomatlik Skrininglari Arxiv Tarixi</h2>
-                <p className="text-xs text-slate-500">Serverda saqlangan so'rovnoma natijalari (EnergoHealth-Predict)</p>
+                <p className="text-xs text-slate-500">{t("Serverda saqlangan so'rovnoma natijalari", language)} ({t(APP_BRAND, language)})</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-bold font-mono">
@@ -4090,7 +4097,7 @@ export default function App() {
       {/* FOOTER & DISCLAIMER */}
       <footer className="max-w-7xl mx-auto px-4 mt-12 border-t border-slate-200 pt-6 text-center text-slate-500 space-y-3 print:hidden">
         <p className="text-xs">
-          © 2026 {APP_BRAND}. {t(APP_FOOTER_COPY, language)}
+          © 2026 {t(APP_BRAND, language)}. {t(APP_FOOTER_COPY, language)}
         </p>
         <div className="bg-slate-200/50 p-4 rounded-lg max-w-4xl mx-auto text-[11px] leading-relaxed text-slate-600 border border-slate-300/60">
           <span className="font-extrabold uppercase text-slate-700 block mb-1">Muhim Ogohlantirish (Medical Disclaimer)</span>

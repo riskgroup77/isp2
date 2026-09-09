@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import type { SurveyResponseOut } from '../types/api';
 import { getRespondentName } from './surveyFilter';
+import { APP_EXPORT_PREFIX } from './branding';
 
 export function exportSurveysToExcel(
   surveys: SurveyResponseOut[],
@@ -60,7 +61,7 @@ export function exportSurveysToExcel(
 
   const name =
     filename ||
-    `EnergoHealth_So_rovnomalar_${new Date().toISOString().split('T')[0]}.xlsx`;
+    `${APP_EXPORT_PREFIX}_So_rovnomalar_${new Date().toISOString().split('T')[0]}.xlsx`;
   XLSX.writeFile(wb, name);
 }
 

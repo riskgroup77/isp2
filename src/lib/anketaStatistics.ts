@@ -18,6 +18,8 @@ export interface EnrichedSurvey {
   meta: WorkerMeta;
   guruh: StudyGroup;
   diseases: string[];
+  primaryIcd?: string;
+  primaryAnketa?: string | null;
 }
 
 export interface DiseaseClassRow {
@@ -123,22 +125,26 @@ function textMatchesAny(text: string, keywords: string[]): boolean {
   return keywords.some((k) => text.includes(k.toLowerCase()));
 }
 
-export function extractDiseasesFromAnswers(answers: Record<string, unknown>): string[] {
-  const found: string[] = [];
+export function extractPrimaryAnketaDisease(answers: Record<string, unknown>): string | null {
   const text = collectAnswerText(answers);
-
   for (const cls of ANKETA_STRUCTURE_CLASSES) {
-    if (textMatchesAny(text, cls.keywords)) found.push(cls.nomi);
+    if (textMatchesAny(text, cls.keywords)) return cls.nomi;
   }
+  return null;
+}
 
-  for (const [code, keywords] of Object.entries(ICD_KEYWORDS)) {
-    if (textMatchesAny(text, keywords)) {
-      const row = ICD_DISEASE_CLASSES.find((c) => c.code === code);
-      if (row && !found.includes(row.nomi)) found.push(row.nomi);
-    }
+export function extractPrimaryIcdCode(answers: Record<string, unknown>): string {
+  const text = collectAnswerText(answers);
+  for (const cls of ICD_DISEASE_CLASSES) {
+    const keywords = ICD_KEYWORDS[cls.code] || [];
+    if (textMatchesAny(text, keywords)) return cls.code;
   }
+  return 'XVIII';
+}
 
-  return found;
+export function extractDiseasesFromAnswers(answers: Record<string, unknown>): string[] {
+  const primary = extractPrimaryAnketaDisease(answers);
+  return primary ? [primary] : [];
 }
 
 export function classifyStudyGroup(survey: SurveyResponseOut): StudyGroup {
@@ -191,6 +197,8 @@ export function enrichSurveys(
       meta,
       guruh: classifyStudyGroup(survey),
       diseases: extractDiseasesFromAnswers(survey.answers),
+      primaryAnketa: extractPrimaryAnketaDisease(survey.answers),
+      primaryIcd: extractPrimaryIcdCode(survey.answers),
     };
   });
 }
@@ -262,10 +270,9 @@ export function buildIcdComparisonTable(enriched: EnrichedSurvey[]) {
   const nN = nazorat.length || 1;
 
   return ICD_DISEASE_CLASSES.map((cls) => {
-    const keywords = ICD_KEYWORDS[cls.code] || [];
     const match = (e: EnrichedSurvey) =>
-      e.diseases.some((d) => d.toLowerCase().includes(cls.nomi.slice(0, 12).toLowerCase())) ||
-      textMatchesAny(collectAnswerText(e.survey.answers), keywords);
+      e.primaryIcd === cls.code ||
+      extractPrimaryIcdCode(e.survey.answers) === cls.code;
 
     const hCases = hodisa.filter(match);
     const nCases = nazorat.filter(match);
@@ -302,17 +309,18 @@ export function buildIcdComparisonTable(enriched: EnrichedSurvey[]) {
 export function buildAnketaStructureTable(enriched: EnrichedSurvey[]) {
   const total = enriched.length || 1;
   return ANKETA_STRUCTURE_CLASSES.map((cls) => {
-    const matched = enriched.filter((e) =>
-      e.diseases.some((d) => cls.nomi.includes(d.split('(')[0].trim().slice(0, 15))) ||
-      textMatchesAny(collectAnswerText(e.survey.answers), cls.keywords)
+    const matched = enriched.filter(
+      (e) =>
+        e.primaryAnketa === cls.nomi ||
+        extractPrimaryAnketaDisease(e.survey.answers) === cls.nomi
     );
     const n = matched.length;
-    const pct = (n / total) * 100;
+    const pctVal = (n / total) * 100;
     return {
       rank: cls.rank,
       nomi: cls.nomi,
       n,
-      foiz: pct,
+      foiz: pctVal,
       rang: `${cls.rank}-o'rin`,
     };
   }).sort((a, b) => b.n - a.n);

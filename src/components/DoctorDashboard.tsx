@@ -26,6 +26,7 @@ import SurveyReport from './SurveyReport';
 import ExcelAnalysisPanel from './ExcelAnalysisPanel';
 import ApiStatusBanner from './ApiStatusBanner';
 import { t } from '../lib/lang';
+import { APP_BRAND } from '../lib/branding';
 import { useApiHealth } from '../lib/useApiHealth';
 
 interface DoctorDashboardProps {
@@ -180,8 +181,10 @@ export default function DoctorDashboard({
         <div className="flex items-center gap-3">
           <User className="w-8 h-8 text-indigo-300" />
           <div>
-            <p className="text-xs text-indigo-300 font-bold uppercase">Shifokor kabineti</p>
-            <h1 className="text-lg font-black">{doctorUser.ism}</h1>
+            <p className="text-[10px] text-indigo-300 font-bold uppercase leading-snug max-w-md">
+              {t(APP_BRAND, language)}
+            </p>
+            <h1 className="text-lg font-black mt-1">{doctorUser.ism} · Shifokor</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">

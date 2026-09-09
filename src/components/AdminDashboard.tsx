@@ -13,6 +13,7 @@ import {
   Play,
   Users,
   FileSpreadsheet,
+  FolderArchive,
 } from 'lucide-react';
 import {
   getAllSurveyResponses,
@@ -30,8 +31,10 @@ import SurveyAnalyticsPanel from './SurveyAnalyticsPanel';
 import QuestionEditor from './QuestionEditor';
 import ExcelAnalysisPanel from './ExcelAnalysisPanel';
 import AdminBulkSurveyPanel from './AdminBulkSurveyPanel';
+import AdminReportsPanel from './AdminReportsPanel';
 import ApiStatusBanner from './ApiStatusBanner';
 import { t } from '../lib/lang';
+import { APP_BRAND } from '../lib/branding';
 import { useApiHealth } from '../lib/useApiHealth';
 
 interface AdminDashboardProps {
@@ -52,7 +55,7 @@ export default function AdminDashboard({
   const [surveys, setSurveys] = useState<SurveyResponseOut[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'dashboard' | 'analytics' | 'excel' | 'bulk' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'reports' | 'analytics' | 'excel' | 'bulk' | 'surveys' | 'questions' | 'doctors' | 'logs'>('dashboard');
   const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null);
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyResponseOut | null>(null);
   const [doctorIdInput, setDoctorIdInput] = useState('');
@@ -108,6 +111,7 @@ export default function AdminDashboard({
 
   const tabs = [
     { id: 'dashboard' as const, label: 'Statistika', icon: Activity },
+    { id: 'reports' as const, label: 'Hisobotlar N=400', icon: FolderArchive },
     { id: 'excel' as const, label: 'Excel tahlil', icon: FileSpreadsheet },
     { id: 'bulk' as const, label: 'Bulk anketa', icon: Play },
     { id: 'analytics' as const, label: "Qidiruv va Excel", icon: Search },
@@ -122,8 +126,10 @@ export default function AdminDashboard({
       <ApiStatusBanner status={apiStatus} message={apiStatusMessage} onRetry={retryApiHealth} />
       <header className="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs text-amber-300 font-bold uppercase">Admin panel</p>
-          <h1 className="text-lg font-black">{adminUser.ism}</h1>
+          <p className="text-[10px] text-amber-300 font-bold uppercase leading-snug max-w-md">
+            {t(APP_BRAND, language)}
+          </p>
+          <h1 className="text-lg font-black mt-1">{adminUser.ism} · Admin</h1>
         </div>
         <div className="flex items-center gap-2">
           {onLanguageChange && (
@@ -184,6 +190,8 @@ export default function AdminDashboard({
 
         {tab === 'excel' ? (
           <ExcelAnalysisPanel language={language} />
+        ) : tab === 'reports' ? (
+          <AdminReportsPanel language={language} />
         ) : tab === 'bulk' ? (
           <AdminBulkSurveyPanel questionnaire={questionnaire} onComplete={loadAll} />
         ) : loading ? (

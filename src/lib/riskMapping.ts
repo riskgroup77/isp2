@@ -1,12 +1,13 @@
 import type { QuestionnaireData, RiskAnalysisResult, UserProfile } from '../types';
 import type { AIReport } from '../types/api';
+import { APP_NAME } from './branding';
 
 export function questionnaireToPredictRiskPayload(
   data: QuestionnaireData,
   user?: UserProfile | null
 ): Record<string, unknown> {
   return {
-    tashkilot_nomi: user?.shifoxona || 'EnergoHealth Predict',
+    tashkilot_nomi: user?.shifoxona || APP_NAME,
     sex: data.jins === 'erkak' ? 'Erkak' : 'Ayol',
     kasbi: data.tibbiyotXodimi ? 'Tibbiyot xodimi' : 'Korxona xodimi',
     sistolik: Number(data.sistolik),

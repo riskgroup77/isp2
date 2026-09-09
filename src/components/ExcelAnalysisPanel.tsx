@@ -124,6 +124,7 @@ export default function ExcelAnalysisPanel({ language = 'lotin' }: ExcelAnalysis
             <p className="text-xs text-slate-500 mt-1">
               Anketa statistikasi Excel faylini yuklang — AI barcha varaqlarni o&apos;qib umumiy tahlil beradi.
               Maksimal hajm: 30 MB · Timeout: 180 soniya.
+              Tayyor Word, Excel va diagrammalar uchun «Hisobotlar N=400» tabidan yuklab oling.
             </p>
           </div>
         </div>

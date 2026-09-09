@@ -25,6 +25,7 @@ import {
   FileDown
 } from 'lucide-react';
 import { CorporateSurvey, UserProfile, QuestionnaireData } from '../types';
+import { APP_BRAND, APP_DOMAIN } from '../lib/branding';
 
 interface CorporateSurveyFormProps {
   onSave: (survey: CorporateSurvey, questionnaireData?: QuestionnaireData, riskResult?: any) => void;
@@ -352,7 +353,8 @@ export default function CorporateSurveyForm({ onSave, language, currentUser }: C
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(255, 255, 255);
-      doc.text("SOG'LIQNI SAQLASH VA PROFILAKTIKA TIZIMI - ENERGOHEALTH-PREDICT", 14, yPos + 6.5);
+      const headerLines = doc.splitTextToSize(APP_BRAND.toUpperCase(), 180);
+      doc.text(headerLines, 14, yPos + 4);
       
       yPos += 18;
 
@@ -562,7 +564,7 @@ export default function CorporateSurveyForm({ onSave, language, currentUser }: C
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text("Ushbu hisobot raqamli ravishda EnergoHealth-Predict kashfiyot formulasi asosida imzolangan.", 10, yPos);
+      doc.text(`Ushbu hisobot raqamli ravishda ${APP_BRAND} kashfiyot formulasi asosida imzolangan.`, 10, yPos);
       doc.text("ID: ERP-VERIFIED", 160, yPos);
 
       doc.save(`Xodim_Salomatlik_Hisoboti_${fields.yoshi || '40'}_yosh_${cleanStr(fields.tashkilotNomi || '')}.pdf`);
@@ -579,7 +581,7 @@ export default function CorporateSurveyForm({ onSave, language, currentUser }: C
             </div>
             <div>
               <h4 className="font-extrabold text-slate-800 text-sm md:text-base">{t_label("Xodim Salomatlik Risk Hisoboti", "Ходим Саломатлик Риск Ҳисоботи")}</h4>
-              <p className="text-slate-400 font-bold text-[10px] tracking-wide">EnergoHealth-Predict • {new Date().toLocaleDateString()}</p>
+              <p className="text-slate-400 font-bold text-[10px] tracking-wide">{APP_BRAND} • {new Date().toLocaleDateString()}</p>
             </div>
           </div>
           
@@ -907,7 +909,7 @@ export default function CorporateSurveyForm({ onSave, language, currentUser }: C
               {t_label("Xodimlar uchun so‘rovnoma", "Ходимлар учун сўровнома")}
             </h3>
             <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-              EnergoHealth-Predict • thermal-donozolog.uz
+              {APP_BRAND} • {APP_DOMAIN}
             </p>
           </div>
         </div>
@@ -2109,7 +2111,7 @@ export default function CorporateSurveyForm({ onSave, language, currentUser }: C
 
                 <div className="bg-slate-550/5 border border-slate-200 rounded-xl p-4 text-center mt-6 text-slate-500 text-xs space-y-1">
                   <p className="font-extrabold uppercase text-[10px] tracking-wider text-slate-700">Tadqiqotchi hamkorlar:</p>
-                  <p className="font-black text-slate-655 text-[11px]">EnergoHealth-Predict • energohealth-predict.uz • thermal-donozolog.uz</p>
+                  <p className="font-black text-slate-655 text-[11px]">{APP_BRAND} • {APP_DOMAIN}</p>
                 </div>
 
                 {/* Bottom submit button */}

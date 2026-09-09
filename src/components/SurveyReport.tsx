@@ -14,6 +14,7 @@ import type { AIReport, SurveyResponseOut, SurveySubmitResponse } from '../types
 import type { UserProfile } from '../types';
 import DiseaseRiskPrognosis from './DiseaseRiskPrognosis';
 import { t } from '../lib/lang';
+import { APP_BRAND, APP_EXPORT_PREFIX } from '../lib/branding';
 
 interface SurveyReportProps {
   survey: SurveyResponseOut;
@@ -63,8 +64,10 @@ export default function SurveyReport({
     const r = report;
     let y = 15;
 
-    doc.setFontSize(16);
-    doc.text('EnergoHealth-Predict', 14, y);
+    doc.setFontSize(11);
+    const brandLines = doc.splitTextToSize(APP_BRAND, 180);
+    doc.text(brandLines, 14, y);
+    y += brandLines.length * 5;
     y += 8;
     doc.setFontSize(10);
     if (user) {
@@ -107,7 +110,7 @@ export default function SurveyReport({
     }
     if (r?.klinikXulosa) addSection('Klinik xulosa', r.klinikXulosa);
 
-    doc.save(`energohealth-hisobot-${localSurvey.id.slice(0, 8)}.pdf`);
+    doc.save(`${APP_EXPORT_PREFIX.toLowerCase()}-hisobot-${localSurvey.id.slice(0, 8)}.pdf`);
   };
 
   return (

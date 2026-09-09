@@ -11,6 +11,7 @@ import {
   type WorkerMeta,
 } from './anketaStatistics';
 import { getRespondentName } from './surveyFilter';
+import { APP_BRAND, APP_EXPORT_PREFIX } from './branding';
 
 function sheetFromRows(rows: Record<string, string | number>[], name: string) {
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -42,7 +43,7 @@ export function exportFullStatisticalExcel(
 
   // ── 1. Umumiy xulosa ──
   const xulosaRows = [
-    ['EnergoHealth-Predict — Umumiy tahlil natijasi'],
+    [`${APP_BRAND} — Umumiy tahlil natijasi`],
     ['Sana', new Date().toLocaleDateString('uz-UZ')],
     ['Jami so\'rovnomalar', summary.jami],
     ['Hodisa guruhi (n)', summary.hodisaSoni],
@@ -232,6 +233,6 @@ export function exportFullStatisticalExcel(
 
   const fname =
     filename ||
-    `EnergoHealth_To_liq_Tahlil_${new Date().toISOString().split('T')[0]}.xlsx`;
+    `${APP_EXPORT_PREFIX}_To_liq_Tahlil_${new Date().toISOString().split('T')[0]}.xlsx`;
   XLSX.writeFile(wb, fname);
 }

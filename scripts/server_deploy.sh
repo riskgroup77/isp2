@@ -6,7 +6,7 @@ REPO="${HOME}/isp-web"
 WEB="/var/www/energohealth-predict.uz"
 API_URL="https://api.energohealth-predict.uz"
 
-echo "=== EnergoHealth-Predict deploy ==="
+echo "=== NKXMP (noinfeksion kardiologik xavf milliy portali) deploy ==="
 mkdir -p "$REPO" "$WEB"
 
 if [ ! -d "$REPO/.git" ]; then
