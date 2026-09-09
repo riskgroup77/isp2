@@ -39,16 +39,16 @@ const LATIN_TO_CYRILLIC_DIRECT_MAP: Record<string, string> = {
   "yo'q": "йўқ",
   "yoq": "йўқ",
   "Yoq": "Йўқ",
-  "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali":
-    "Ноинфексион кардиологик хавфларни прогнозлаш ва мониторинг қилиш миллий-илмий кўп ролли портали",
-  "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali — kartasi":
-    "Ноинфексион кардиологик хавфларни прогнозлаш ва мониторинг қилиш миллий-илмий кўп ролли портали — картаси",
-  "Noinfeksion kardiologik xavflarni prognozlash, monitoring va ko'p rolli tibbiy xizmatlar uchun milliy-ilmiy axborot portali":
-    "Ноинфексион кардиологик хавфларни прогнозлаш, мониторинг ва кўп ролли тиббий хизматлар учун миллий-илмий ахборот портали",
-  "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali.":
-    "Ноинфексион кардиологик хавфларни прогнозлаш ва мониторинг қилиш миллий-илмий кўп ролли портали.",
-  "Mazkur milliy-ilmiy ko'p rolli portal noinfeksion kardiologik xavflarni baholash, prognozlash va monitoring qilish hamda profilaktik ma'lumot berish uchun mo'ljallangan axborot tizimidir. U klinika emas va yakuniy tibbiy tashxis o'rnini bosa olmaydi.":
-    "Мазкур миллий-илмий кўп ролли портал ноинфексион кардиологик хавфларни баҳолаш, прогнозлаш ва мониторинг қилиш ҳамда профилактик маълумот бериш учун мўлжалланган ахборот тизимидир. У клиника емас ва якуний тиббий ташхис ўрнини боса олмайди.",
+  "Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali":
+    "Донозологик мониторинг ва касбий рискни прогнозлаш миллий портали",
+  "Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali — kartasi":
+    "Донозологик мониторинг ва касбий рискни прогнозлаш миллий портали — картаси",
+  "Donozologik monitoring, kasbiy risk prognozi va milliy axborot xizmatlari portali":
+    "Донозологик мониторинг, касбий риск прогнози ва миллий ахборот хизматлари портали",
+  "Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali.":
+    "Донозологик мониторинг ва касбий рискни прогнозлаш миллий портали.",
+  "Mazkur milliy portal donozologik monitoring va kasbiy riskni baholash, prognozlash hamda profilaktik ma'lumot berish uchun mo'ljallangan axborot tizimidir. U klinika emas va yakuniy tibbiy tashxis o'rnini bosa olmaydi.":
+    "Мазкур миллий портал донозологик мониторинг ва касбий рискни баҳолаш, прогнозлаш ҳамда профилактик маълумот бериш учун мўлжалланган ахборот тизимидир. У клиника емас ва якуний тиббий ташхис ўрнини боса олмайди.",
 };
 
 /**

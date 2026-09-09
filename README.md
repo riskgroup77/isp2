@@ -1,4 +1,4 @@
-# Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali
+# Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali
 
 React + Vite frontend for the national multi-role portal API ([FastAPI docs](https://api.energohealth-predict.uz/docs)).
 

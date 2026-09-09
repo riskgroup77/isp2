@@ -1,6 +1,6 @@
 {
-  "name": "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali",
-  "description": "Noinfeksion kardiologik xavflarni prognozlash va monitoring qilish milliy-ilmiy ko'p rolli portali (energohealth-predict.uz)",
+  "name": "Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali",
+  "description": "Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali (energohealth-predict.uz)",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

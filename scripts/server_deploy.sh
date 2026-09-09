@@ -6,7 +6,7 @@ REPO="${HOME}/isp-web"
 WEB="/var/www/energohealth-predict.uz"
 API_URL="https://api.energohealth-predict.uz"
 
-echo "=== NKXMP (noinfeksion kardiologik xavf milliy portali) deploy ==="
+echo "=== DMKRMP (Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali) deploy ==="
 mkdir -p "$REPO" "$WEB"
 
 if [ ! -d "$REPO/.git" ]; then
@@ -38,6 +38,7 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
+    listen 192.168.0.101:443 ssl http2;
     server_name energohealth-predict.uz www.energohealth-predict.uz;
 
     ssl_certificate /etc/letsencrypt/live/energohealth-predict.uz/fullchain.pem;
