@@ -327,7 +327,26 @@ def build_document() -> Document:
         "Natijalar public/reports/n400/ ga nusxalanadi va admin panel orqali yuklab olinadi.",
     )
 
-    add_heading(doc, "12. Muhim eslatmalar")
+    add_heading(doc, "12. Ilmiy-statistik ko'rsatkichlar (95% CI, p, OR)")
+    add_para(
+        doc,
+        "Anketa_Ilmiy_Statistika_N400 (Word/Excel) — dissertatsiya va maqolada natijalarni "
+        "standartlarga mos taqdim etish uchun qo'shimcha hisobot. Foizlar saqlanadi, yoniga "
+        "95% ishonch oralig'i qo'shiladi.",
+    )
+    add_heading(doc, "12.1. Ishonch oralig'i (95% CI)", level=2)
+    add_formula(doc, "Sifat ko'rsatkich: SE_p = sqrt(p(1-p)/n);  95% CI = p ± 1.96 × SE_p")
+    add_formula(doc, "Miqdoriy ko'rsatkich: 95% CI = X̄ ± 1.96 × SD/√n")
+    add_heading(doc, "12.2. Guruhlararo taqqoslash", level=2)
+    add_para(doc, "Erkak/ayol taqqoslash: Pearson χ² (kutilgan ≥5) yoki Fisher exact (kutilgan <5).")
+    add_para(doc, "Hodisa/nazorat miqdoriy: Mann-Whitney U-mezoni.")
+    add_heading(doc, "12.3. Xavf bog'liqlik", level=2)
+    add_formula(doc, "OR = (a×d)/(b×c);  95% CI — log(OR) ± 1.96 × SE_log")
+    add_heading(doc, "12.4. Ishonchlilik", level=2)
+    add_formula(doc, "Cronbach α = (k/(k-1)) × (1 - Σvar_item / var_total);  α ≥ 0.70 tavsiya")
+    add_para(doc, "Modul: scripts/academic_stats.py | Hisobot: scripts/generate_ilmiy_statistika_n400.py")
+
+    add_heading(doc, "13. Muhim eslatmalar")
     add_para(
         doc,
         "1. Portal klinika emas; natijalar ilmiy-statistik tahlil va kasbiy risk monitoring "

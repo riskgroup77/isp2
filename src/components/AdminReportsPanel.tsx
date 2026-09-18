@@ -24,6 +24,13 @@ const REPORT_FILES = [
     ],
   },
   {
+    group: 'Ilmiy-statistik tahlil (95% CI, p, OR)',
+    items: [
+      { name: 'Anketa_Ilmiy_Statistika_N400.docx', file: 'Anketa_Ilmiy_Statistika_N400.docx', icon: FileText, desc: 'Dissertatsiya/maqola uchun to\'liq statistika (Word)' },
+      { name: 'Anketa_Ilmiy_Statistika_N400.xlsx', file: 'Anketa_Ilmiy_Statistika_N400.xlsx', icon: FileSpreadsheet, desc: '95% CI, p-qiymat, OR, Cronbach α (Excel)' },
+    ],
+  },
+  {
     group: 'Diagrammalar — dissertatsiya',
     items: [
       { name: '01_kasallanishlar_strukturasi.png', file: 'diagrammalar/01_kasallanishlar_strukturasi.png', icon: Image, desc: 'Kasallanishlar pie' },

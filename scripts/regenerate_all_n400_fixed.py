@@ -103,6 +103,8 @@ def copy_to_public(
     sex_docx: Path | None,
     diss_diag: Path,
     anketa_diag: Path,
+    ilmiy_xlsx: Path | None = None,
+    ilmiy_docx: Path | None = None,
 ) -> Path:
     """Admin panel yuklab olish uchun public/reports/n400 ga nusxalash."""
     pub = ROOT / "public" / "reports" / "n400"
@@ -120,6 +122,10 @@ def copy_to_public(
     }
     if sex_docx and sex_docx.exists():
         mapping[sex_docx] = pub / "Anketa_Tahlili_Sex_Ishchilari.docx"
+    if ilmiy_xlsx and ilmiy_xlsx.exists():
+        mapping[ilmiy_xlsx] = pub / "Anketa_Ilmiy_Statistika_N400.xlsx"
+    if ilmiy_docx and ilmiy_docx.exists():
+        mapping[ilmiy_docx] = pub / "Anketa_Ilmiy_Statistika_N400.docx"
 
     for src, dst in mapping.items():
         shutil.copy2(src, dst)
@@ -178,6 +184,13 @@ def main() -> int:
     write_anketa_excel(tables, izohlar, risk, records, anketa_xlsx)
     write_anketa_word(tables, izohlar, risk, anketa_diagram_meta, anketa_docx)
 
+    # ── Ilmiy-statistik tahlil (95% CI, p, OR, Cronbach α) ──
+    from generate_ilmiy_statistika_n400 import generate_ilmiy_reports  # noqa: E402
+
+    ilmiy_xlsx, ilmiy_docx = generate_ilmiy_reports(records)
+    shutil.copy2(ilmiy_xlsx, Path.home() / "Desktop" / ilmiy_xlsx.name)
+    shutil.copy2(ilmiy_docx, Path.home() / "Desktop" / ilmiy_docx.name)
+
     # ── Anketa tahlili shablon (7 jadval) ──
     tpl_out: Path | None = None
     if TEMPLATE and TEMPLATE.exists():
@@ -199,7 +212,10 @@ def main() -> int:
         shutil.rmtree(anketa_diag_desk)
     shutil.copytree(ANKETA_DIAG, anketa_diag_desk)
 
-    pub = copy_to_public(diss_xlsx, diss_docx, anketa_xlsx, anketa_docx, tpl_out, DISS_DIAG, ANKETA_DIAG)
+    pub = copy_to_public(
+        diss_xlsx, diss_docx, anketa_xlsx, anketa_docx, tpl_out, DISS_DIAG, ANKETA_DIAG,
+        ilmiy_xlsx, ilmiy_docx,
+    )
 
     # Tekshiruv
     dis_sum = sum(r["n"] for r in anketa_rows)
