@@ -20,6 +20,7 @@ const REPORT_FILES = [
       { name: 'Anketa_Tahlili_N400.docx', file: 'Anketa_Tahlili_N400.docx', icon: FileText, desc: '7 bo\'lim + xavf zonasi (Word)' },
       { name: 'Anketa_Tahlili_N400.xlsx', file: 'Anketa_Tahlili_N400.xlsx', icon: FileSpreadsheet, desc: 'Anketa tahlili (Excel)' },
       { name: 'Anketa_Tahlili_Sex_Ishchilari.docx', file: 'Anketa_Tahlili_Sex_Ishchilari.docx', icon: FileText, desc: '7 jadval shablon formatida' },
+      { name: 'Malumotnoma_Formulalar_N400.docx', file: 'Malumotnoma_Formulalar_N400.docx', icon: FileText, desc: 'Hisoblash formulalari va metodologiya (Word)' },
     ],
   },
   {
