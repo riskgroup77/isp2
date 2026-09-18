@@ -14,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = ROOT / "public" / "reports" / "n400" / "Malumotnoma_Formulalar_N400.docx"
+OUTPUT = ROOT / "public" / "reports" / "n400" / "06_malumotnoma" / "Malumotnoma_Formulalar_N400.docx"
 
 PORTAL = "Donozologik Monitoring va Kasbiy Riskni Prognozlash Milliy Portali"
 TODAY = date.today().strftime("%d.%m.%Y")
@@ -327,7 +327,17 @@ def build_document() -> Document:
         "Natijalar public/reports/n400/ ga nusxalanadi va admin panel orqali yuklab olinadi.",
     )
 
-    add_heading(doc, "12. Ilmiy-statistik ko'rsatkichlar (95% CI, p, OR)")
+    add_heading(doc, "12. 4.2-jadval (ICD × Hodisa/Nazorat, M ± m)")
+    add_para(
+        doc,
+        "Dissertatsiya 4.2-jadval formati: har ICD sinfi uchun hodisa va nazorat guruhi "
+        "alohida — 100 ishchiga mehnatga yaroqsizlik holatlari va kunlari M ± m ko'rinishida.",
+    )
+    add_formula(doc, "100 ishchiga holatlar = (n_ICD / n_guruh) × 100 ± 1.96×SE_p×100")
+    add_formula(doc, "100 ishchiga kunlar = (Σ kun_i / n_guruh) × 100 ± 1.96×SE×100")
+    add_para(doc, "Fayl: 03_jadval_4_2/Jadval_4_2_ICD_Hodisa_Nazorat_N400.docx")
+
+    add_heading(doc, "13. Ilmiy-statistik ko'rsatkichlar (95% CI, p, OR)")
     add_para(
         doc,
         "Anketa_Ilmiy_Statistika_N400 (Word/Excel) — dissertatsiya va maqolada natijalarni "
@@ -346,7 +356,7 @@ def build_document() -> Document:
     add_formula(doc, "Cronbach α = (k/(k-1)) × (1 - Σvar_item / var_total);  α ≥ 0.70 tavsiya")
     add_para(doc, "Modul: scripts/academic_stats.py | Hisobot: scripts/generate_ilmiy_statistika_n400.py")
 
-    add_heading(doc, "13. Muhim eslatmalar")
+    add_heading(doc, "14. Muhim eslatmalar")
     add_para(
         doc,
         "1. Portal klinika emas; natijalar ilmiy-statistik tahlil va kasbiy risk monitoring "

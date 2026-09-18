@@ -105,40 +105,69 @@ def copy_to_public(
     anketa_diag: Path,
     ilmiy_xlsx: Path | None = None,
     ilmiy_docx: Path | None = None,
+    jadval_xlsx: Path | None = None,
+    jadval_docx: Path | None = None,
 ) -> Path:
-    """Admin panel yuklab olish uchun public/reports/n400 ga nusxalash."""
+    """Admin panel — tartibli papka tuzilmasi bilan public/reports/n400."""
     pub = ROOT / "public" / "reports" / "n400"
     if pub.exists():
         shutil.rmtree(pub)
-    pub.mkdir(parents=True)
-    (pub / "diagrammalar").mkdir()
-    (pub / "diagrammalar_anketa").mkdir()
+
+    dirs = {
+        "asosiy": pub / "01_asosiy_hisobotlar",
+        "ilmiy": pub / "02_ilmiy_statistika",
+        "jadval": pub / "03_jadval_4_2",
+        "diss_diag": pub / "04_diagrammalar_dissertatsiya",
+        "ank_diag": pub / "05_diagrammalar_anketa",
+        "malumot": pub / "06_malumotnoma",
+    }
+    for d in dirs.values():
+        d.mkdir(parents=True)
 
     mapping = {
-        diss_xlsx: pub / "Dissertatsiya_Tahlil_N400.xlsx",
-        diss_docx: pub / "Dissertatsiya_Tahlil_N400.docx",
-        anketa_xlsx: pub / "Anketa_Tahlili_N400.xlsx",
-        anketa_docx: pub / "Anketa_Tahlili_N400.docx",
+        diss_xlsx: dirs["asosiy"] / "Dissertatsiya_Tahlil_N400.xlsx",
+        diss_docx: dirs["asosiy"] / "Dissertatsiya_Tahlil_N400.docx",
+        anketa_xlsx: dirs["asosiy"] / "Anketa_Tahlili_N400.xlsx",
+        anketa_docx: dirs["asosiy"] / "Anketa_Tahlili_N400.docx",
     }
     if sex_docx and sex_docx.exists():
-        mapping[sex_docx] = pub / "Anketa_Tahlili_Sex_Ishchilari.docx"
+        mapping[sex_docx] = dirs["asosiy"] / "Anketa_Tahlili_Sex_Ishchilari.docx"
     if ilmiy_xlsx and ilmiy_xlsx.exists():
-        mapping[ilmiy_xlsx] = pub / "Anketa_Ilmiy_Statistika_N400.xlsx"
+        mapping[ilmiy_xlsx] = dirs["ilmiy"] / "Anketa_Ilmiy_Statistika_N400.xlsx"
     if ilmiy_docx and ilmiy_docx.exists():
-        mapping[ilmiy_docx] = pub / "Anketa_Ilmiy_Statistika_N400.docx"
+        mapping[ilmiy_docx] = dirs["ilmiy"] / "Anketa_Ilmiy_Statistika_N400.docx"
+    if jadval_xlsx and jadval_xlsx.exists():
+        mapping[jadval_xlsx] = dirs["jadval"] / "Jadval_4_2_ICD_Hodisa_Nazorat_N400.xlsx"
+    if jadval_docx and jadval_docx.exists():
+        mapping[jadval_docx] = dirs["jadval"] / "Jadval_4_2_ICD_Hodisa_Nazorat_N400.docx"
 
     for src, dst in mapping.items():
-        shutil.copy2(src, dst)
+        if src.exists():
+            shutil.copy2(src, dst)
 
     for p in diss_diag.glob("*.png"):
-        shutil.copy2(p, pub / "diagrammalar" / p.name)
+        shutil.copy2(p, dirs["diss_diag"] / p.name)
     for p in anketa_diag.glob("*.png"):
-        shutil.copy2(p, pub / "diagrammalar_anketa" / p.name)
+        shutil.copy2(p, dirs["ank_diag"] / p.name)
 
-    from generate_malumotnoma_n400 import main as gen_malumotnoma  # noqa: E402
+    from generate_malumotnoma_n400 import build_document  # noqa: E402
 
-    gen_malumotnoma()
+    mal_path = dirs["malumot"] / "Malumotnoma_Formulalar_N400.docx"
+    build_document().save(mal_path)
 
+    readme = pub / "OQISH_BUYURMASI.txt"
+    readme.write_text(
+        f"N=400 HISOBOT PAKETI — {TODAY}\n"
+        f"{'=' * 50}\n\n"
+        "01_asosiy_hisobotlar/     — Dissertatsiya va Anketa (Word + Excel)\n"
+        "02_ilmiy_statistika/      — 95% CI, p, OR, Cronbach α\n"
+        "03_jadval_4_2/            — 4.2-jadval (ICD × Hodisa/Nazorat, M±m)\n"
+        "04_diagrammalar_dissertatsiya/ — 5 ta PNG\n"
+        "05_diagrammalar_anketa/   — 8 ta PNG (7 bo'lim + xavf)\n"
+        "06_malumotnoma/           — Formulalar va metodologiya\n\n"
+        "Admin panel: Hisobotlar N=400 bo'limidan yuklab oling.\n",
+        encoding="utf-8",
+    )
     return pub
 
 
@@ -191,6 +220,12 @@ def main() -> int:
     shutil.copy2(ilmiy_xlsx, Path.home() / "Desktop" / ilmiy_xlsx.name)
     shutil.copy2(ilmiy_docx, Path.home() / "Desktop" / ilmiy_docx.name)
 
+    from jadval_42 import generate_jadval_42  # noqa: E402
+
+    jadval_xlsx, jadval_docx, _ = generate_jadval_42(records, OUTPUT_DIR)
+    shutil.copy2(jadval_xlsx, Path.home() / "Desktop" / jadval_xlsx.name)
+    shutil.copy2(jadval_docx, Path.home() / "Desktop" / jadval_docx.name)
+
     # ── Anketa tahlili shablon (7 jadval) ──
     tpl_out: Path | None = None
     if TEMPLATE and TEMPLATE.exists():
@@ -214,7 +249,7 @@ def main() -> int:
 
     pub = copy_to_public(
         diss_xlsx, diss_docx, anketa_xlsx, anketa_docx, tpl_out, DISS_DIAG, ANKETA_DIAG,
-        ilmiy_xlsx, ilmiy_docx,
+        ilmiy_xlsx, ilmiy_docx, jadval_xlsx, jadval_docx,
     )
 
     # Tekshiruv

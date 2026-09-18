@@ -36,6 +36,7 @@ from academic_stats import (  # noqa: E402
 )
 from generate_anketa_tahlili_docx import ans_contains, ans_eq, count_if  # noqa: E402
 from generate_statistical_excel import style_header  # noqa: E402
+from jadval_42 import build_jadval_42_rows, JADVAL_TITLE  # noqa: E402
 
 OUTPUT_DIR = ROOT / "data"
 PUBLIC_DIR = ROOT / "public" / "reports" / "n400"
@@ -275,6 +276,20 @@ def write_excel(
     for line in sample_text(symptom_rows, n):
         ws7.append([line.replace("$", "")])
 
+    ws8 = wb.create_sheet("4.2-jadval ICD")
+    ws8.append(["4.2-jadval", JADVAL_TITLE])
+    ws8.append([
+        "ICD sinfi", "Hodisa — holatlar (M±m)", "Hodisa — kunlar (M±m)",
+        "Nazorat — holatlar (M±m)", "Nazorat — kunlar (M±m)",
+    ])
+    for row in build_jadval_42_rows(records):
+        ws8.append([
+            f"{row['code']}. {row['nomi'][:40]}",
+            row["h_cases_pm"], row["h_days_pm"],
+            row["n_cases_pm"], row["n_days_pm"],
+        ])
+    style_header(ws8, row=2)
+
     wb.save(out_path)
 
 
@@ -378,14 +393,30 @@ def write_word(
         if ri == 1:
             doc.add_paragraph(f"Matn namunasi: {doc_para}")
 
-    doc.add_heading("7. Ishonchlilik (Cronbach α)", level=1)
+    doc.add_heading("7. 4.2-jadval — ICD × Hodisa/Nazorat (M ± m)", level=1)
+    from jadval_42 import build_jadval_42_rows as j42_rows, JADVAL_TITLE as J42_TITLE  # noqa: E402
+
+    doc.add_paragraph(J42_TITLE)
+    j42 = j42_rows(records)
+    t42 = doc.add_table(rows=len(j42) + 1, cols=5)
+    t42.style = "Table Grid"
+    for i, h in enumerate(["ICD sinfi", "Hodisa holatlar", "Hodisa kunlar", "Nazorat holatlar", "Nazorat kunlar"]):
+        t42.rows[0].cells[i].text = h
+    for i, row in enumerate(j42, 1):
+        t42.rows[i].cells[0].text = f"{row['code']}. {row['nomi'][:40]}"
+        t42.rows[i].cells[1].text = row["h_cases_pm"]
+        t42.rows[i].cells[2].text = row["h_days_pm"]
+        t42.rows[i].cells[3].text = row["n_cases_pm"]
+        t42.rows[i].cells[4].text = row["n_days_pm"]
+
+    doc.add_heading("8. Ishonchlilik (Cronbach α)", level=1)
     doc.add_paragraph(
         f"Anketa Likert itemlari ichki mosligi: α = {reliability['alpha']} "
         f"({reliability['interpretation']}; {reliability['items']} item, n={reliability['n']}). "
         "Tavsiya: α ≥ 0.70."
     )
 
-    doc.add_heading("8. Hisoblash vositalari", level=1)
+    doc.add_heading("9. Hisoblash vositalari", level=1)
     doc.add_paragraph(
         "IBM SPSS Statistics (Descriptive → Crosstabs), MS Excel (=CONFIDENCE.NORM()), "
         "Python (academic_stats.py moduli) — barcha 95% CI va OR parametrlari avtomatik hisoblandi."

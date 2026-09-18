@@ -1,0 +1,11 @@
+N=400 HISOBOT PAKETI — 2026-09-18
+==================================================
+
+01_asosiy_hisobotlar/     — Dissertatsiya va Anketa (Word + Excel)
+02_ilmiy_statistika/      — 95% CI, p, OR, Cronbach α
+03_jadval_4_2/            — 4.2-jadval (ICD × Hodisa/Nazorat, M±m)
+04_diagrammalar_dissertatsiya/ — 5 ta PNG
+05_diagrammalar_anketa/   — 8 ta PNG (7 bo'lim + xavf)
+06_malumotnoma/           — Formulalar va metodologiya
+
+Admin panel: Hisobotlar N=400 bo'limidan yuklab oling.

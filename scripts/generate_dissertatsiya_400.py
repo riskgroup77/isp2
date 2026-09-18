@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from bulk_submit_surveys import resolve_excel_path
 from academic_stats import fmt_ci  # noqa: E402
+from jadval_42 import build_jadval_42_rows, JADVAL_TITLE  # noqa: E402
 from generate_statistical_excel import (
     ANKETA_STRUCTURE,
     ICD_CLASSES,
@@ -322,6 +323,27 @@ def write_excel(records: list[dict], anketa_rows: list, icd_rows: list, demo: di
         ws3.append([row["code"], row["nomi"], row["n"], row["pct"], fmt_ci(row["n"], n), round(row["n"] / n * 100, 1)])
     style_header(ws3)
 
+    # 4.2-jadval
+    j42 = build_jadval_42_rows(records)
+    hodisa_n = sum(1 for r in records if r.get("guruh") == "hodisa")
+    nazorat_n = n - hodisa_n
+    ws42 = wb.create_sheet("4.2-jadval ICD")
+    ws42.append(["4.2-jadval", JADVAL_TITLE])
+    ws42.append([
+        "Kasallik sinfi (ICD-10)",
+        f"Hodisa (n={hodisa_n}) — 100 ishchiga holatlar",
+        "Hodisa — 100 ishchiga kunlar",
+        f"Nazorat (n={nazorat_n}) — 100 ishchiga holatlar",
+        "Nazorat — 100 ishchiga kunlar",
+    ])
+    for row in j42:
+        ws42.append([
+            f"{row['code']}. {row['nomi']}",
+            row["h_cases_pm"], row["h_days_pm"],
+            row["n_cases_pm"], row["n_days_pm"],
+        ])
+    style_header(ws42, row=2)
+
     # Sexlar
     ws4 = wb.create_sheet("Sexlar")
     by_sex: dict[str, list] = defaultdict(list)
@@ -434,20 +456,45 @@ def write_word(records: list[dict], anketa_rows: list, icd_rows: list, demo: dic
         doc.add_picture(str(p2), width=Inches(6))
         doc.add_paragraph(diagram_meta[1]["izoh"])
 
-    doc.add_heading("4. Sex va jins bo'yicha taqsimot", level=1)
+    doc.add_heading("4.2-jadval — ICD sinflari, MVL (100 ishchiga, M ± m)", level=1)
+    doc.add_paragraph(JADVAL_TITLE)
+    j42 = build_jadval_42_rows(records)
+    hodisa_n = sum(1 for r in records if r.get("guruh") == "hodisa")
+    nazorat_n = len(records) - hodisa_n
+    t42 = doc.add_table(rows=len(j42) + 1, cols=5)
+    t42.style = "Table Grid"
+    h42 = t42.rows[0].cells
+    h42[0].text = "Kasallik sinfi (ICD-10)"
+    h42[1].text = f"Hodisa guruhi\n100 ishchiga holatlar (n={hodisa_n})"
+    h42[2].text = "Hodisa guruhi\n100 ishchiga kunlar"
+    h42[3].text = f"Nazorat guruhi\n100 ishchiga holatlar (n={nazorat_n})"
+    h42[4].text = "Nazorat guruhi\n100 ishchiga kunlar"
+    for i, row in enumerate(j42, 1):
+        c = t42.rows[i].cells
+        c[0].text = f"{row['code']}. {row['nomi'][:45]}"
+        c[1].text = row["h_cases_pm"]
+        c[2].text = row["h_days_pm"]
+        c[3].text = row["n_cases_pm"]
+        c[4].text = row["n_days_pm"]
+    doc.add_paragraph(
+        "Izoh: ± dan keyingi qiymat 95% ishonch oralig'ining yarim kengligi. "
+        "Format dissertatsiya 4.2-jadval talablariga mos."
+    )
+
+    doc.add_heading("5. Sex va jins bo'yicha taqsimot", level=1)
     for fname, dm in zip(["03_sexlar_taqsimoti.png", "04_jins_taqsimoti.png"], diagram_meta[2:4]):
         p = diagram_dir / fname
         if p.exists():
             doc.add_picture(str(p), width=Inches(5))
             doc.add_paragraph(dm["izoh"])
 
-    doc.add_heading("5. Hodisa / Nazorat guruhi", level=1)
+    doc.add_heading("6. Hodisa / Nazorat guruhi", level=1)
     p5 = diagram_dir / "05_hodisa_nazorat.png"
     if p5.exists():
         doc.add_picture(str(p5), width=Inches(4.5))
         doc.add_paragraph(diagram_meta[4]["izoh"])
 
-    doc.add_heading("6. Umumiy ilmiy xulosa", level=1)
+    doc.add_heading("7. Umumiy ilmiy xulosa", level=1)
     doc.add_paragraph(
         "1. Farg'ona IESda 698 xodim anketa topshirgan — bu yuqori qamrovli so'rov natijasidir.\n"
         f"2. N={SAMPLE_SIZE} namuna bo'yicha eng ko'p kasallanish nafas a'zolari ({top['pct']}%), "
