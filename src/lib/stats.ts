@@ -120,9 +120,17 @@ export function chi2df1P(chi2: number): number {
 // ── Testlar ───────────────────────────────────────────
 
 export interface TestResult {
+  /** Test nomi: "Styudent t", "Welch t", "χ²", "Fisher", "ANOVA F" */
   test: string;
+  /** Statistika qiymati (t, χ², F); Fisher uchun null */
   stat: number | null;
+  /** Erkinlik darajasi (F uchun — birinchi) */
+  df?: number | null;
+  /** F uchun ikkinchi erkinlik darajasi */
+  df2?: number | null;
   p: number | null;
+  /** Ogohlantirish (masalan, kutilgan chastotalar kam) */
+  warn?: string;
 }
 
 /** Welch t-testi (dispersiyalar teng bo'lmasa ham to'g'ri) */
@@ -135,7 +143,7 @@ export function welchTTest(a: number[], b: number[]): TestResult {
   if (va + vb === 0) return { test: 'Welch t', stat: null, p: ma === mb ? 1 : 0 };
   const t = (ma - mb) / Math.sqrt(va + vb);
   const df = (va + vb) ** 2 / ((va * va) / (a.length - 1) + (vb * vb) / (b.length - 1));
-  return { test: 'Welch t', stat: t, p: tTwoSidedP(t, df) };
+  return { test: 'Welch t', stat: t, df, p: tTwoSidedP(t, df) };
 }
 
 function logFact(n: number): number {
@@ -172,9 +180,9 @@ export function test2x2(a: number, b: number, c: number, d: number): TestResult 
   const c2 = b + d;
   if (c1 === 0 || c2 === 0) return { test: '—', stat: null, p: null };
   const minExp = Math.min(r1 * c1, r1 * c2, r2 * c1, r2 * c2) / n;
-  if (minExp < 5) return { test: 'Fisher', stat: null, p: fisherExact(a, b, c, d) };
+  if (minExp < 5) return { test: 'Fisher', stat: null, df: null, p: fisherExact(a, b, c, d) };
   const chi2 = (n * (a * d - b * c) ** 2) / (r1 * r2 * c1 * c2);
-  return { test: 'χ²', stat: chi2, p: chi2df1P(chi2) };
+  return { test: 'χ²', stat: chi2, df: 1, p: chi2df1P(chi2) };
 }
 
 /** Nisbatlar nisbati (OR) va 95% IO; nol katak bo'lsa Haldane–Anscombe (+0,5) */
@@ -192,6 +200,180 @@ export function oddsRatio(a: number, b: number, c: number, d: number): { or: num
   return { or, lo: Math.exp(Math.log(or) - 1.96 * seLog), hi: Math.exp(Math.log(or) + 1.96 * seLog) };
 }
 
+/** Klassik Styudent t-testi (dispersiyalar teng deb olinadi, df = n1 + n2 − 2) */
+export function studentTTest(a: number[], b: number[]): TestResult {
+  if (a.length < 2 || b.length < 2) return { test: 'Styudent t', stat: null, df: null, p: null };
+  const ma = mean(a) as number;
+  const mb = mean(b) as number;
+  const va = (sd(a) as number) ** 2;
+  const vb = (sd(b) as number) ** 2;
+  const df = a.length + b.length - 2;
+  const sp2 = ((a.length - 1) * va + (b.length - 1) * vb) / df;
+  const seDiff = Math.sqrt(sp2 * (1 / a.length + 1 / b.length));
+  if (seDiff === 0) return { test: 'Styudent t', stat: null, df, p: ma === mb ? 1 : 0 };
+  const t = (ma - mb) / seDiff;
+  return { test: 'Styudent t', stat: t, df, p: tTwoSidedP(t, df) };
+}
+
+export type TTestKind = 'student' | 'welch';
+
+export function tTest(a: number[], b: number[], kind: TTestKind = 'student'): TestResult {
+  return kind === 'welch' ? welchTTest(a, b) : studentTTest(a, b);
+}
+
+/** F taqsimoti bo'yicha yuqori dumli p */
+export function fUpperP(F: number, df1: number, df2: number): number {
+  if (!Number.isFinite(F) || F < 0) return NaN;
+  return betai(df2 / 2, df1 / 2, df2 / (df2 + df1 * F));
+}
+
+/** Bir omilli dispersion tahlil (ANOVA), 3 va undan ortiq guruh uchun */
+export function anovaOneWay(groups: number[][]): TestResult {
+  const gs = groups.filter((g) => g.length > 0);
+  const N = gs.reduce((s, g) => s + g.length, 0);
+  const k = gs.length;
+  if (k < 2 || N - k < 1) return { test: 'ANOVA F', stat: null, df: null, df2: null, p: null };
+  const grand = gs.reduce((s, g) => s + g.reduce((a, b) => a + b, 0), 0) / N;
+  let ssb = 0;
+  let ssw = 0;
+  gs.forEach((g) => {
+    const m = mean(g) as number;
+    ssb += g.length * (m - grand) ** 2;
+    g.forEach((v) => {
+      ssw += (v - m) ** 2;
+    });
+  });
+  const df1 = k - 1;
+  const df2 = N - k;
+  if (ssw === 0) return { test: 'ANOVA F', stat: null, df: df1, df2, p: ssb === 0 ? 1 : 0 };
+  const F = ssb / df1 / (ssw / df2);
+  return { test: 'ANOVA F', stat: F, df: df1, df2, p: fUpperP(F, df1, df2) };
+}
+
+// Regularizatsiyalangan to'liqmas gamma funksiya (Numerical Recipes gser/gcf)
+function gammaPSeries(a: number, x: number): number {
+  let sum = 1 / a;
+  let del = sum;
+  let ap = a;
+  for (let n = 0; n < 500; n++) {
+    ap += 1;
+    del *= x / ap;
+    sum += del;
+    if (Math.abs(del) < Math.abs(sum) * 3e-14) break;
+  }
+  return sum * Math.exp(-x + a * Math.log(x) - lgamma(a));
+}
+
+function gammaQContinued(a: number, x: number): number {
+  const FPMIN = 1e-300;
+  let b = x + 1 - a;
+  let c = 1 / FPMIN;
+  let d = 1 / b;
+  let h = d;
+  for (let i = 1; i < 500; i++) {
+    const an = -i * (i - a);
+    b += 2;
+    d = an * d + b;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = b + an / c;
+    if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 3e-14) break;
+  }
+  return Math.exp(-x + a * Math.log(x) - lgamma(a)) * h;
+}
+
+/** Q(a, x) = 1 − P(a, x) */
+export function gammaQ(a: number, x: number): number {
+  if (x <= 0) return 1;
+  if (x < a + 1) return 1 - gammaPSeries(a, x);
+  return gammaQContinued(a, x);
+}
+
+/** χ² taqsimoti bo'yicha yuqori dumli p */
+export function chi2UpperP(chi2: number, df: number): number {
+  if (!Number.isFinite(chi2) || df <= 0) return NaN;
+  return gammaQ(df / 2, Math.max(0, chi2) / 2);
+}
+
+/**
+ * Pearson χ² — ixtiyoriy r×c jadval (qatorlar × ustunlar).
+ * Bo'sh qator/ustunlar tashlanadi. 2×2 va kutilgan chastota < 5 bo'lsa Fisher.
+ */
+export function chiSquareRxC(table: number[][]): TestResult {
+  let rows = table.filter((r) => r.reduce((a, b) => a + b, 0) > 0);
+  if (!rows.length) return { test: 'χ²', stat: null, df: null, p: null };
+  const nCols = Math.max(...rows.map((r) => r.length));
+  const colTot = Array.from({ length: nCols }, (_, j) => rows.reduce((s, r) => s + (r[j] ?? 0), 0));
+  const keep = colTot.map((t) => t > 0);
+  rows = rows.map((r) => r.filter((_, j) => keep[j]));
+  const R = rows.length;
+  const C = rows[0]?.length ?? 0;
+  if (R < 2 || C < 2) return { test: 'χ²', stat: null, df: null, p: null, warn: "Taqqoslash uchun kamida 2×2 jadval kerak" };
+  if (R === 2 && C === 2) return test2x2(rows[0][0], rows[0][1], rows[1][0], rows[1][1]);
+  const rowTot = rows.map((r) => r.reduce((a, b) => a + b, 0));
+  const ct = Array.from({ length: C }, (_, j) => rows.reduce((s, r) => s + r[j], 0));
+  const n = rowTot.reduce((a, b) => a + b, 0);
+  let chi2 = 0;
+  let small = 0;
+  rows.forEach((r, i) =>
+    r.forEach((o, j) => {
+      const e = (rowTot[i] * ct[j]) / n;
+      if (e < 5) small++;
+      chi2 += (o - e) ** 2 / e;
+    })
+  );
+  const df = (R - 1) * (C - 1);
+  const warn = small / (R * C) > 0.2 ? `Kataklarning ${Math.round((small / (R * C)) * 100)}% ida kutilgan chastota < 5 — natijani ehtiyotkorlik bilan talqin qiling` : undefined;
+  return { test: 'χ²', stat: chi2, df, p: chi2UpperP(chi2, df), warn };
+}
+
+/**
+ * Darajalar bir xilligi (Puasson): holatlar soni / ishchilar soni yillar yoki
+ * guruhlar bo'yicha farq qiladimi. χ² = Σ (O − E)² / E, E = jami · ulush.
+ */
+export function rateHomogeneity(cases: number[], exposure: number[]): TestResult {
+  const idx = cases.map((_, i) => i).filter((i) => exposure[i] > 0);
+  if (idx.length < 2) return { test: 'χ² (darajalar)', stat: null, df: null, p: null };
+  const O = idx.map((i) => cases[i]);
+  const X = idx.map((i) => exposure[i]);
+  const totO = O.reduce((a, b) => a + b, 0);
+  const totX = X.reduce((a, b) => a + b, 0);
+  if (totO === 0) return { test: 'χ² (darajalar)', stat: 0, df: idx.length - 1, p: 1 };
+  let chi2 = 0;
+  O.forEach((o, i) => {
+    const e = (totO * X[i]) / totX;
+    chi2 += (o - e) ** 2 / e;
+  });
+  const df = idx.length - 1;
+  return { test: 'χ² (darajalar)', stat: chi2, df, p: chi2UpperP(chi2, df) };
+}
+
+/** p bo'yicha ahamiyatlilik belgisi: * p<0,05; ** p<0,01; *** p<0,001 */
+export function sigMark(p: number | null | undefined): string {
+  if (p === null || p === undefined || !Number.isFinite(p)) return '';
+  if (p < 0.001) return '***';
+  if (p < 0.01) return '**';
+  if (p < 0.05) return '*';
+  return '';
+}
+
+export function isSignificant(p: number | null | undefined, alpha = 0.05): boolean {
+  return p !== null && p !== undefined && Number.isFinite(p) && p < alpha;
+}
+
+/** "t = 2,45; df = 98" ko'rinishidagi statistik yozuv */
+export function fmtStat(r: TestResult, comma = true): string {
+  if (r.stat === null || r.stat === undefined || !Number.isFinite(r.stat)) return r.test === 'Fisher' ? 'Fisher (aniq)' : '—';
+  const sym = r.test.startsWith('ANOVA') ? 'F' : r.test.startsWith('χ²') ? 'χ²' : 't';
+  const v = fmt(r.stat, sym === 't' ? 2 : 2, comma);
+  if (sym === 'F') return `F = ${v}; df = ${r.df ?? '—'}, ${r.df2 ?? '—'}`;
+  const df = r.df === null || r.df === undefined ? '—' : Number.isInteger(r.df) ? String(r.df) : fmt(r.df, 1, comma);
+  return `${sym} = ${v}; df = ${df}`;
+}
+
 // ── Formatlash ────────────────────────────────────────
 
 export function fmt(n: number | null | undefined, digits = 1, comma = true): string {
@@ -200,10 +382,10 @@ export function fmt(n: number | null | undefined, digits = 1, comma = true): str
   return comma ? s.replace('.', ',') : s;
 }
 
-export function fmtP(p: number | null | undefined, comma = true): string {
+export function fmtP(p: number | null | undefined, comma = true, stars = false): string {
   if (p === null || p === undefined || !Number.isFinite(p)) return '—';
-  if (p < 0.001) return comma ? '<0,001' : '<0.001';
-  return fmt(p, 3, comma);
+  const base = p < 0.001 ? (comma ? '<0,001' : '<0.001') : fmt(p, 3, comma);
+  return stars ? `${base}${sigMark(p)}` : base;
 }
 
 export function fmtMeanSe(xs: number[], digits = 1, comma = true): string {

@@ -11,12 +11,13 @@ export interface ChartMetric {
   id: string;
   label: string;
   /** Bir xil birlikdagi ko'rsatkichlarni birga chizish uchun */
-  unit: 'count' | 'percent' | 'value';
+  unit: 'count' | 'percent' | 'permille' | 'value';
   hasError: boolean;
 }
 
 function aggUnit(agg: AggFn): ChartMetric['unit'] {
   if (agg === 'pct_true') return 'percent';
+  if (agg === 'per1000_true') return 'permille';
   if (agg === 'count' || agg === 'count_true') return 'count';
   return 'value';
 }
@@ -35,7 +36,7 @@ export function chartMetrics(report: ComputedReport, def: ReportDefinition): Cha
   const rows = dataRows(report);
   const out: ChartMetric[] = [
     { id: '__n', label: 'N (xodimlar soni)', unit: 'count', hasError: false },
-    { id: '__pct', label: '% (jamidan ulushi)', unit: 'percent', hasError: false },
+    { id: '__pct', label: 'Ekstensiv % (jamidan ulushi)', unit: 'percent', hasError: false },
   ];
   def.columns.forEach((c, i) => {
     const idx = keyCount + 2 + i;

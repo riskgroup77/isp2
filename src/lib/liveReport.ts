@@ -22,6 +22,12 @@ import {
   test2x2,
   welchTTest,
   wilsonCI,
+  anovaOneWay,
+  chiSquareRxC,
+  fmtStat,
+  isSignificant,
+  tTest,
+  type TTestKind,
 } from './stats';
 
 export interface LiveTable {
@@ -32,6 +38,8 @@ export interface LiveTable {
   rows: (string | number)[][];
   /** Oxirgi qator "Jami" — qalin ko'rsatiladi */
   totalRow?: boolean;
+  /** Qalin ko'rsatiladigan qatorlar (ishonchli farq, p < 0,05) */
+  boldRows?: number[];
 }
 
 export interface LiveSection {
@@ -50,6 +58,10 @@ export interface LiveReportOptions {
   comma: boolean;
   /** Har bir xodimdan faqat oxirgi anketa */
   latestPerUser: boolean;
+  /** Ikki guruh uchun t-mezoni: klassik Styudent yoki Welch */
+  tKind: TTestKind;
+  /** Intensiv ko'rsatkich asosi: 100 yoki 1000 ishchiga */
+  perBase: 100 | 1000;
 }
 
 export interface LiveReport {
@@ -153,7 +165,7 @@ function categoricalTable(
   rows: ReportRow[],
   q: Question,
   comma: boolean,
-  opts: { id?: string; title?: string; sortByN?: boolean; rank?: boolean } = {}
+  opts: { id?: string; title?: string; sortByN?: boolean; rank?: boolean; structure?: boolean } = {}
 ): LiveTable {
   const name = `q${String(q.id).toLowerCase()}`;
   const respondents = rows.filter((r) => answered(r.ctx[name] ?? null));
@@ -171,7 +183,31 @@ function categoricalTable(
   });
   if (opts.sortByN) data = [...data].sort((a, b) => b.k - a.k);
   const multi = q.type === 'multi_choice';
-  const headers = [...(opts.rank ? ["O'rin"] : []), 'Javob', 'n', '%', '95% IO, %'];
+  if (multi && opts.structure) {
+    // Tuzilma: ekstensiv = belgilangan holat / barcha belgilashlar; intensiv = 100 xodimga
+    const mentions = data.reduce((acc, d) => acc + d.k, 0);
+    const body = data.map((d, i) => [
+      ...(opts.rank ? [d.k ? i + 1 : '—'] : []),
+      d.opt,
+      d.k,
+      pctCell(d.k, mentions, comma),
+      pctCell(d.k, nResp, comma),
+      ciCell(d.k, nResp, comma),
+    ]);
+    body.push([...(opts.rank ? [''] : []), 'Jami', mentions, mentions ? fmt(100, 1, comma) : '—', '', '']);
+    return {
+      id: opts.id ?? `q${q.id}`,
+      title: opts.title ?? `${q.id}. ${q.text}`,
+      note:
+        `Javob berganlar: ${nResp} / ${rows.length}; jami belgilashlar: ${mentions}. ` +
+        "Ekstensiv ko'rsatkich — shu kasallikning barcha kasalliklar ichidagi ulushi (tuzilma, yig'indisi 100%). " +
+        "Intensiv ko'rsatkich — 100 ta xodimga to'g'ri keladigan holatlar (tarqalganlik); 95% IO intensiv ko'rsatkich uchun.",
+      headers: [...(opts.rank ? ["O'rin"] : []), 'Javob', 'n', 'Ekstensiv, %', 'Intensiv, % (100 xodimga)', '95% IO, %'],
+      rows: body,
+      totalRow: true,
+    };
+  }
+  const headers = [...(opts.rank ? ["O'rin"] : []), 'Javob', 'n', multi ? 'Intensiv, % (100 xodimga)' : 'Ekstensiv, %', '95% IO, %'];
   const body = data.map((d, i) => [
     ...(opts.rank ? [d.k ? i + 1 : '—'] : []),
     d.opt,
@@ -187,7 +223,9 @@ function categoricalTable(
     title: opts.title ?? `${q.id}. ${q.text}`,
     note:
       `Javob berganlar: ${nResp} / ${rows.length}.` +
-      (multi ? " Bir nechta javob belgilash mumkin — foizlar yig'indisi 100% dan oshishi mumkin." : ''),
+      (multi
+        ? " Bir nechta javob belgilash mumkin — intensiv ko'rsatkichlar yig'indisi 100% dan oshishi mumkin."
+        : " Ekstensiv ko'rsatkich — javoblar tuzilmasi (yig'indisi 100%)."),
     headers,
     rows: body,
     totalRow: !multi,
@@ -326,6 +364,7 @@ export function buildLiveReport(
           title: "3-jadval. Kasallanishlar strukturasi (so'nggi bir yilda)",
           sortByN: true,
           rank: true,
+          structure: true,
         })
       );
     }
@@ -371,6 +410,22 @@ export function buildLiveReport(
         {
           id: 'c-jins',
           title: 'Xavf zonalari jins bo\'yicha',
+          note: (() => {
+            const tab = ['Erkak', 'Ayol'].map((j) =>
+              ZONES.map(([z]) => withZone.filter((r) => norm(toStr(r.ctx.jins ?? null)) === norm(j) && norm(toStr(r.ctx.zona ?? null)) === z).length)
+            );
+            const res = chiSquareRxC(tab);
+            const tr = tTest(
+              nums(withZone.filter((r) => norm(toStr(r.ctx.jins ?? null)) === 'erkak'), 'risk'),
+              nums(withZone.filter((r) => norm(toStr(r.ctx.jins ?? null)) === 'ayol'), 'risk'),
+              options.tKind
+            );
+            return (
+              `Zonalar taqsimotining jinslar o'rtasidagi farqi: ${fmtStat(res, comma)}; p = ${fmtP(res.p, comma, true)} (Pearson χ²). ` +
+              `O'rtacha xavf farqi: ${fmtStat(tr, comma)}; p = ${fmtP(tr.p, comma, true)} (${tr.test}).` +
+              (res.warn ? ` ${res.warn}.` : '')
+            );
+          })(),
           headers: ['Jins', 'N', ...ZONES.map(([, l]) => l.split(' ')[0]), 'Xavf, % (M ± m)'],
           rows: byJins,
         },
@@ -389,8 +444,11 @@ export function buildLiveReport(
       .map(([name, label, d]) => {
         const a = getNums(H, name);
         const b = getNums(N, name);
-        const t = welchTTest(a, b);
-        return [label, `${fmtMeanSe(a, d, comma)} (n=${a.length})`, `${fmtMeanSe(b, d, comma)} (n=${b.length})`, fmtP(t.p, comma)];
+        const t = tTest(a, b, options.tKind);
+        return {
+          row: [label, `${fmtMeanSe(a, d, comma)} (n=${a.length})`, `${fmtMeanSe(b, d, comma)} (n=${b.length})`, fmtStat(t, comma), fmtP(t.p, comma, true)],
+          sig: isSignificant(t.p),
+        };
       });
 
     type Feat = { label: string; vars: string[]; test: (r: ReportRow) => boolean | null };
@@ -425,15 +483,20 @@ export function buildLiveReport(
         const d = nv.length - c;
         const tr = test2x2(a, b, c, d);
         const or = oddsRatio(a, b, c, d);
-        return [
-          f.label,
-          nPct(a, hv.length, comma),
-          nPct(c, nv.length, comma),
-          or ? `${fmt(or.or, 2, comma)} (${fmt(or.lo, 2, comma)} – ${fmt(or.hi, 2, comma)})` : '—',
-          fmtP(tr.p, comma),
-          tr.test,
-        ];
+        return {
+          row: [
+            f.label,
+            nPct(a, hv.length, comma),
+            nPct(c, nv.length, comma),
+            or ? `${fmt(or.or, 2, comma)} (${fmt(or.lo, 2, comma)} – ${fmt(or.hi, 2, comma)})` : '—',
+            fmtStat(tr, comma),
+            fmtP(tr.p, comma, true),
+            tr.test,
+          ],
+          sig: isSignificant(tr.p),
+        };
       });
+    const tName = options.tKind === 'welch' ? 'Welch t-mezoni' : "Styudentning t-mezoni (klassik)";
 
     sections.push({
       id: 'D',
@@ -443,16 +506,18 @@ export function buildLiveReport(
         {
           id: 'd-cont',
           title: "Hodisa va nazorat guruhlarini miqdoriy ko'rsatkichlar bo'yicha taqqoslash",
-          note: `Hodisa: ${options.hodisaLabel} (n=${H.length}); nazorat — qolganlar (n=${N.length}). M ± m; p — Welch t-testi.`,
-          headers: ["Ko'rsatkich", 'Hodisa guruhi', 'Nazorat guruhi', 'p'],
-          rows: cont,
+          note: `Hodisa: ${options.hodisaLabel} (n=${H.length}); nazorat — qolganlar (n=${N.length}). M ± m; ${tName}. * p<0,05; ** p<0,01; *** p<0,001.`,
+          headers: ["Ko'rsatkich", 'Hodisa guruhi', 'Nazorat guruhi', 't; df', 'p'],
+          rows: cont.map((x) => x.row),
+          boldRows: cont.map((x, i) => (x.sig ? i : -1)).filter((i) => i >= 0),
         },
         {
           id: 'd-cat',
           title: 'Xavf omillarining guruhlarda uchrashi',
-          note: 'n (%) — guruh ichidagi ulush. OR — nisbatlar nisbati (95% IO). p — Pearson χ² (kutilgan chastota < 5 bo\'lsa Fisher aniq testi).',
-          headers: ['Belgi', 'Hodisa, n (%)', 'Nazorat, n (%)', 'OR (95% IO)', 'p', 'Test'],
-          rows: cat,
+          note: "n (%) — guruh ichidagi intensiv ko'rsatkich. OR — nisbatlar nisbati (95% IO). Pearson χ² (Yates tuzatishisiz); kutilgan chastota < 5 bo'lsa Fisher aniq testi. * p<0,05; ** p<0,01; *** p<0,001.",
+          headers: ['Belgi', 'Hodisa, n (%)', 'Nazorat, n (%)', 'OR (95% IO)', 'χ²; df', 'p', 'Test'],
+          rows: cat.map((x) => x.row),
+          boldRows: cat.map((x, i) => (x.sig ? i : -1)).filter((i) => i >= 0),
         },
       ],
     });
@@ -462,18 +527,21 @@ export function buildLiveReport(
   {
     const q43 = Q('43');
     const classes = q43?.options ?? [];
+    const base = options.perBase;
     const rateCell = (rows: ReportRow[], pick: (r: ReportRow) => boolean) => {
-      const xs = rows.map((r) => (pick(r) ? episodes(r) * 100 : 0));
+      const xs = rows.map((r) => (pick(r) ? episodes(r) * base : 0));
       return fmtMeanSe(xs, 1, comma);
     };
-    const tRows: (string | number)[][] = classes.map((c) => {
+    const eSig: number[] = [];
+    const tRows: (string | number)[][] = classes.map((c, i) => {
       const pick = (r: ReportRow) => hasOption(r.ctx.q43 ?? null, c);
-      const t = welchTTest(H.map((r) => (pick(r) ? episodes(r) : 0)), N.map((r) => (pick(r) ? episodes(r) : 0)));
-      return [c, H.filter(pick).length, rateCell(H, pick), N.filter(pick).length, rateCell(N, pick), fmtP(t.p, comma)];
+      const t = tTest(H.map((r) => (pick(r) ? episodes(r) : 0)), N.map((r) => (pick(r) ? episodes(r) : 0)), options.tKind);
+      if (isSignificant(t.p)) eSig.push(i);
+      return [c, H.filter(pick).length, rateCell(H, pick), N.filter(pick).length, rateCell(N, pick), fmtStat(t, comma), fmtP(t.p, comma, true)];
     });
     const all = () => true;
-    const tAll = welchTTest(H.map(episodes), N.map(episodes));
-    tRows.push(['Jami', H.length, rateCell(H, all), N.length, rateCell(N, all), fmtP(tAll.p, comma)]);
+    const tAll = tTest(H.map(episodes), N.map(episodes), options.tKind);
+    tRows.push(['Jami', H.length, rateCell(H, all), N.length, rateCell(N, all), fmtStat(tAll, comma), fmtP(tAll.p, comma, true)]);
     const missing45 = sample.filter((r) => toNum(r.ctx.q45 ?? null) === null).length;
     if (missing45) warnings.push(`4.2-jadval: ${missing45} ta anketada 45-savol (mehnatga layoqatsizlik soni) bo'sh — 0 deb olindi.`);
     sections.push({
@@ -483,13 +551,23 @@ export function buildLiveReport(
       tables: [
         {
           id: 'e-42',
-          title: '4.2-jadval. Kasallik sinflari bo\'yicha vaqtincha mehnatga layoqatsizlik holatlari (100 ishchiga, M ± m)',
+          title: `4.2-jadval. Kasallik sinflari bo'yicha vaqtincha mehnatga layoqatsizlik holatlari (intensiv ko'rsatkich, ${base} ishchiga, M ± m)`,
           note:
             "Kasallik sinfi — 43-savol, holatlar soni — 45-savol (\"5 va undan ortiq\" = 5). " +
-            "Kunlar soni anketada so'ralmagan, shuning uchun jadvalda faqat holatlar soni. p — Welch t-testi.",
-          headers: ['Kasallik sinfi', 'Hodisa: ishchilar, n', 'Hodisa: holatlar / 100 ishchi', 'Nazorat: ishchilar, n', 'Nazorat: holatlar / 100 ishchi', 'p'],
+            `Intensiv ko'rsatkich = holatlar / ishchilar × ${base}. Kunlar soni anketada so'ralmagan, shuning uchun jadvalda faqat holatlar soni. ` +
+            `${options.tKind === 'welch' ? 'Welch' : 'Styudent (klassik)'} t-mezoni. * p<0,05; ** p<0,01; *** p<0,001.`,
+          headers: [
+            'Kasallik sinfi',
+            'Hodisa: ishchilar, n',
+            `Hodisa: holatlar / ${base} ishchi`,
+            'Nazorat: ishchilar, n',
+            `Nazorat: holatlar / ${base} ishchi`,
+            't; df',
+            'p',
+          ],
           rows: tRows,
           totalRow: true,
+          boldRows: eSig,
         },
       ],
     });
@@ -514,13 +592,31 @@ export function buildLiveReport(
         k((r) => hasOption(r.ctx.q44 ?? null, 'Ha')),
         k((r) => hasOption(r.ctx.q51 ?? null, 'Hozirda chekaman')),
         k((r) => hasOption(r.ctx.q43 ?? null, 'Yuqori va quyi nafas organlari kasalliklari')),
-        fmtMeanSe(g.map((r) => episodes(r) * 100), 1, comma),
+        fmtMeanSe(g.map((r) => episodes(r) * options.perBase), 1, comma),
       ];
     };
-    const rows = sexes
-      .map((s) => line(s, sample.filter((r) => norm(toStr(r.ctx.q9 ?? null)) === norm(s))))
-      .filter((r) => (r[1] as number) > 0);
+    const sexGroups = sexes
+      .map((s) => ({ s, g: sample.filter((r) => norm(toStr(r.ctx.q9 ?? null)) === norm(s)) }))
+      .filter((x) => x.g.length > 0);
+    const rows = sexGroups.map((x) => line(x.s, x.g));
     rows.push(line('Jami', sample));
+    // Sexlar o'rtasidagi farq: miqdoriy — ANOVA, ulushlar — χ² (k×2)
+    const propP = (f: (r: ReportRow) => boolean) => {
+      const res = chiSquareRxC(sexGroups.map((x) => [x.g.filter(f).length, x.g.length - x.g.filter(f).length]));
+      return `${fmtP(res.p, comma, true)}`;
+    };
+    const anovaP = (get: (rs: ReportRow[]) => number[]) => fmtP(anovaOneWay(sexGroups.map((x) => get(x.g))).p, comma, true);
+    rows.push([
+      'Sexlar farqi, p',
+      '',
+      '',
+      anovaP((rs) => nums(rs, 'risk')),
+      propP((r) => ['sargish', 'qizil'].includes(norm(toStr(r.ctx.zona ?? null)))),
+      propP((r) => hasOption(r.ctx.q44 ?? null, 'Ha')),
+      propP((r) => hasOption(r.ctx.q51 ?? null, 'Hozirda chekaman')),
+      propP((r) => hasOption(r.ctx.q43 ?? null, 'Yuqori va quyi nafas organlari kasalliklari')),
+      anovaP((rs) => rs.map(episodes)),
+    ]);
     sections.push({
       id: 'F',
       title: 'Sexlar kesimida',
@@ -529,10 +625,10 @@ export function buildLiveReport(
         {
           id: 'f-sex',
           title: "Asosiy ko'rsatkichlar sexlar kesimida",
-          note: "% — sex ichidagi ulush (\"% jami\" bundan mustasno). Mehnatga layoqatsizlik — 100 ishchiga holatlar, M ± m.",
-          headers: ['Sex', 'N', '% jami', 'Xavf, % (M ± m)', "Sarg'ish+qizil, %", 'Surunkali kasallik, %', 'Chekuvchilar, %', 'Nafas kasalliklari, %', 'Mehnatga layoqatsizlik / 100'],
+          note: `"% jami" — ekstensiv ko'rsatkich (sexning tanlamadagi ulushi); qolgan % — sex ichidagi intensiv ko'rsatkich (100 xodimga). Mehnatga layoqatsizlik — ${options.perBase} ishchiga holatlar, M ± m. Oxirgi qator: miqdoriy ko'rsatkichlar uchun ANOVA, ulushlar uchun Pearson χ². * p<0,05; ** p<0,01; *** p<0,001.`,
+          headers: ['Sex', 'N', 'Ekstensiv, % jami', 'Xavf, % (M ± m)', "Sarg'ish+qizil, %", 'Surunkali kasallik, %', 'Chekuvchilar, %', 'Nafas kasalliklari, %', `Mehnatga layoqatsizlik / ${options.perBase}`],
           rows,
-          totalRow: true,
+          boldRows: [rows.length - 2],
         },
       ],
     });
@@ -597,8 +693,19 @@ export function methodologyRows(rep: LiveReport): (string | number)[][] {
     ['Nazorat guruhi', `Qolgan xodimlar (n=${rep.nNazorat})`],
     ['Ulush uchun 95% IO', 'Wilson usuli'],
     ["O'rtacha", 'M ± m, m = SD/√n; o\'rtacha uchun 95% IO = M ± 1,96·m'],
-    ['Miqdoriy taqqoslash', 'Welch t-testi (ikki tomonlama)'],
-    ['Sifat belgilar', 'Pearson χ² (Yates tuzatishisiz); kutilgan chastota < 5 bo\'lsa Fisher aniq testi'],
+    [
+      'Miqdoriy taqqoslash',
+      o.tKind === 'welch'
+        ? "Ikki guruh — Welch t-mezoni (dispersiyalar teng emas); 3+ guruh — bir omilli dispersion tahlil (ANOVA)"
+        : "Ikki guruh — Styudentning t-mezoni (klassik, df = n₁ + n₂ − 2); 3+ guruh — bir omilli dispersion tahlil (ANOVA)",
+    ],
+    ['Sifat belgilar', "Pearson χ² (r×c, Yates tuzatishisiz); 2×2 da kutilgan chastota < 5 bo'lsa Fisher aniq testi"],
+    ['Ekstensiv ko\'rsatkich', "Hodisaning umumiy tuzilmadagi ulushi, % (yig'indisi 100%)"],
+    [
+      'Intensiv ko\'rsatkich',
+      `Hodisaning muhitdagi chastotasi: holatlar soni / xodimlar soni × 100 (%); 4.2-jadval va sexlar jadvalida — ${o.perBase} ishchiga${o.perBase === 1000 ? ' (‰)' : ''}`,
+    ],
+    ['Belgilar', '* p < 0,05; ** p < 0,01; *** p < 0,001 — farq statistik ishonchli; qalin qatorlar ishonchli farqni bildiradi'],
     ['OR', "Nisbatlar nisbati, 95% IO log-usulda; nol katakda Haldane–Anscombe (+0,5)"],
     ['Yosh', "3-savoldagi tug'ilgan sanadan hisoblangan to'liq yil"],
     ['Klinik ko\'rsatkichlar', "Anketa klinik bosqichi; bo'lmasa 40-savoldagi bosim va 4-savoldagi vazn"],
@@ -662,7 +769,7 @@ export function printLiveReport(rep: LiveReport): void {
     `<h3>${esc(t.title)}</h3>${t.note ? `<p class="note">${esc(t.note)}</p>` : ''}<table><thead><tr>${t.headers
       .map((h) => `<th>${esc(h)}</th>`)
       .join('')}</tr></thead><tbody>${t.rows
-      .map((r, i) => `<tr class="${t.totalRow && i === t.rows.length - 1 ? 'total' : ''}">${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`)
+      .map((r, i) => `<tr class="${(t.totalRow && i === t.rows.length - 1) || t.boldRows?.includes(i) ? 'total' : ''}">${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`)
       .join('')}</tbody></table>`;
   const html = `<!doctype html><html lang="uz"><head><meta charset="utf-8"><title>Anketa tahlili N=${rep.n}</title>
 <style>body{font-family:"Times New Roman",serif;padding:24px;color:#000;font-size:12px}h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 6px;border-bottom:1px solid #000;padding-bottom:2px}h3{font-size:13px;margin:14px 0 4px}
@@ -687,7 +794,7 @@ export async function exportLiveReportWord(rep: LiveReport): Promise<void> {
   rep.sections.forEach((sec) => {
     blocks.push({ type: 'h1', text: sec.title });
     sec.tables.forEach((t) => {
-      blocks.push({ type: 'table', caption: t.title, headers: t.headers, rows: t.rows, boldLastRow: t.totalRow });
+      blocks.push({ type: 'table', caption: t.title, headers: t.headers, rows: t.rows, boldLastRow: t.totalRow, boldRows: t.boldRows });
       if (t.note) blocks.push({ type: 'p', text: `Izoh: ${t.note}`, italic: true, small: true });
     });
   });

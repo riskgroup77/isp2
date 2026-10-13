@@ -12,6 +12,7 @@ import {
   type LiveTable,
 } from '../lib/liveReport';
 import type { Questionnaire, SurveyResponseOut } from '../types/api';
+import { exportSpss } from '../lib/spssExport';
 
 interface Props {
   surveys: SurveyResponseOut[];
@@ -31,6 +32,8 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
   const [customExpr, setCustomExpr] = useState('');
   const [comma, setComma] = useState(true);
   const [latestPerUser, setLatestPerUser] = useState(true);
+  const [tKind, setTKind] = useState<'student' | 'welch'>('student');
+  const [perBase, setPerBase] = useState<100 | 1000>(100);
   const [activeSection, setActiveSection] = useState('A');
   const [showSettings, setShowSettings] = useState(false);
   const [wordBusy, setWordBusy] = useState(false);
@@ -48,12 +51,14 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
     hodisaLabel,
     comma,
     latestPerUser,
+    tKind,
+    perBase,
   };
 
   const report = useMemo(
     () => (questions.length ? buildLiveReport(surveys, questions, options) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [surveys, questions, options.sampleSize, options.seed, options.hodisaExpr, options.hodisaLabel, comma, latestPerUser]
+    [surveys, questions, options.sampleSize, options.seed, options.hodisaExpr, options.hodisaLabel, comma, latestPerUser, tKind, perBase]
   );
 
   const section = report?.sections.find((s) => s.id === activeSection) ?? report?.sections[0];
@@ -127,6 +132,29 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
             >
               <Printer className="w-4 h-4" />
               Chop etish / PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!report) return;
+                exportSpss(report.sample, questions, `DMKRMP_Anketa_N${report.n}_${new Date().toISOString().slice(0, 10)}.sav`, {
+                  group: {
+                    name: 'GURUH',
+                    label: `Guruh: ${report.options.hodisaLabel}`,
+                    codes: new Map(report.sample.map((r) => [r.survey.id, r.guruh === 'hodisa' ? 1 : 2])),
+                    valueLabels: [
+                      [1, 'Hodisa'],
+                      [2, 'Nazorat'],
+                    ],
+                  },
+                });
+              }}
+              disabled={!report || report.n === 0}
+              title="Tanlamadagi xodimlar, barcha savollar kodlangan holda; GURUH: 1 — hodisa, 2 — nazorat"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold disabled:opacity-40"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              SPSS (.sav)
             </button>
           </div>
         </div>
@@ -229,6 +257,23 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
                 <input type="checkbox" checked={comma} onChange={(e) => setComma(e.target.checked)} />
                 O'nlik ajratgich — vergul (34,5)
               </label>
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-2">Ikki guruh uchun t-mezoni</p>
+              {([
+                ['student', 'Styudent (klassik)'],
+                ['welch', 'Welch (dispersiyalar teng emas)'],
+              ] as const).map(([k, l]) => (
+                <label key={k} className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={tKind === k} onChange={() => setTKind(k)} />
+                  {l}
+                </label>
+              ))}
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-2">Intensiv ko'rsatkich asosi</p>
+              {([100, 1000] as const).map((b) => (
+                <label key={b} className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={perBase === b} onChange={() => setPerBase(b)} />
+                  {b} ishchiga {b === 1000 ? '(‰)' : ''}
+                </label>
+              ))}
             </div>
           </div>
         )}
@@ -315,7 +360,7 @@ function TableCard({ table }: { key?: string; table: LiveTable }) {
           </thead>
           <tbody>
             {table.rows.map((r, ri) => {
-              const isTotal = table.totalRow && ri === table.rows.length - 1;
+              const isTotal = (table.totalRow && ri === table.rows.length - 1) || !!table.boldRows?.includes(ri);
               const isHeading = r.slice(1).every((c) => c === '') && r.length > 1;
               return (
                 <tr

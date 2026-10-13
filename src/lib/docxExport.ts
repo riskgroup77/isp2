@@ -9,7 +9,7 @@ export type DocBlock =
   | { type: 'h1' | 'h2' | 'h3'; text: string }
   | { type: 'p'; text: string; italic?: boolean; small?: boolean }
   | { type: 'kv'; rows: [string, string | number][] }
-  | { type: 'table'; headers: string[]; rows: (string | number)[][]; boldLastRow?: boolean; caption?: string }
+  | { type: 'table'; headers: string[]; rows: (string | number)[][]; boldLastRow?: boolean; boldRows?: number[]; caption?: string }
   | { type: 'image'; png: Uint8Array; width: number; height: number; caption?: string }
   | { type: 'pagebreak' };
 
@@ -130,7 +130,9 @@ export async function exportDocx(blocks: DocBlock[], opts: DocOptions): Promise<
                 (_, ci) =>
                   new TableCell({
                     borders,
-                    children: [cellPara(String(r[ci] ?? ''), !!b.boldLastRow && ri === b.rows.length - 1)],
+                    children: [
+                      cellPara(String(r[ci] ?? ''), (!!b.boldLastRow && ri === b.rows.length - 1) || !!b.boldRows?.includes(ri)),
+                    ],
                   })
               ),
             })

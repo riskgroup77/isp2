@@ -29,7 +29,13 @@ import { buildChartSpec, chartMetrics, pieAllowed } from '../lib/reportChart';
 import { exportDocx, type DocBlock } from '../lib/docxExport';
 import { APP_EXPORT_PREFIX } from '../lib/branding';
 import { FUNCTIONS, validateFormula } from '../lib/formulaEngine';
+import { exportSpss } from '../lib/spssExport';
 import {
+  DEFAULT_COMPARE,
+  applyFilter,
+  compareGroupCodes,
+  computeComparison,
+  type CompareConfig,
   AGG_LABELS,
   SAMPLE_REPORTS,
   buildRows,
@@ -92,6 +98,14 @@ const GROUP_SNIPPETS = [
   { label: 'Oy', expr: 'oy' },
 ];
 
+const COMPARE_PRESETS = [
+  { label: 'Hodisa / Nazorat (q44)', a: 'q44 = "Ha"', al: 'Hodisa', b: 'q44 = "Yo\'q"', bl: 'Nazorat' },
+  { label: 'Erkak / Ayol', a: 'jins = "Erkak"', al: 'Erkak', b: 'jins = "Ayol"', bl: 'Ayol' },
+  { label: 'Chekuvchi / Chekmaydigan', a: 'q51 = "Hozirda chekaman"', al: 'Chekuvchi', b: 'not ISEMPTY(q51) and q51 != "Hozirda chekaman"', bl: 'Chekmaydigan' },
+  { label: "Xavf ≥ 50% / < 50%", a: 'risk >= 50', al: 'Xavf ≥ 50%', b: 'risk < 50', bl: 'Xavf < 50%' },
+  { label: '40 yosh va katta / kichik', a: 'yosh >= 40', al: '≥ 40 yosh', b: 'yosh < 40', bl: '< 40 yosh' },
+];
+
 export default function AdminReportBuilder({ surveys, questionnaire, people, peopleError, language = 'lotin' }: Props) {
   const [questions, setQuestions] = useState<Question[]>(questionnaire?.questions ?? []);
   const patients = useMemo(() => people ?? new Map<string, PersonInfo>(), [people]);
@@ -124,6 +138,10 @@ export default function AdminReportBuilder({ surveys, questionnaire, people, peo
   const report = useMemo(() => computeReport(rows, def, knownVars), [rows, def, knownVars]);
 
   const isGrouped = def.groupBy.some((g) => g.trim());
+  const compare: CompareConfig = def.compare ?? DEFAULT_COMPARE;
+  const setCompare = (patch: Partial<CompareConfig>) =>
+    setDef((d) => ({ ...d, compare: { ...(d.compare ?? DEFAULT_COMPARE), ...patch } }));
+  const comparison = useMemo(() => computeComparison(rows, def, compare, knownVars), [rows, def, compare, knownVars]);
 
   const filteredCatalog = useMemo(() => {
     const s = varSearch.trim().toLowerCase();
@@ -248,6 +266,7 @@ table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid 
 <h1>${esc(def.name)}</h1><p>N = ${report.n} / ${report.total} · ${esc(new Date().toLocaleString('uz-UZ'))}${def.filter ? ` · Filtr: <code>${esc(def.filter)}</code>` : ''}${isGrouped ? ` · Guruh: <code>${esc(def.groupBy.filter(Boolean).join(', '))}</code>` : ''}</p>
 ${view === 'chart' && rendered ? `<div style="margin:12px 0 18px">${rendered.svg.replace('<svg ', '<svg style="width:100%;height:auto" ')}</div>` : ''}<table><thead><tr>${report.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
 <tbody>${report.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c.text)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+${comparison && comparison.rows.length ? `<h1 style="margin-top:20px">Guruhlararo taqqoslash</h1><p>${esc(comparison.title)}</p><table><thead><tr>${comparison.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${comparison.rows.map((r) => `<tr style="font-weight:${r.sig ? 700 : 400}">${r.cells.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${comparison.notes.map((n) => `<p>${esc(n)}</p>`).join('')}` : ''}
 <script>window.onload=function(){window.print()}</script></body></html>`;
     w.document.write(html);
     w.document.close();
@@ -264,6 +283,23 @@ ${view === 'chart' && rendered ? `<div style="margin:12px 0 18px">${rendered.svg
   const [chartMetricIds, setChartMetricIds] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [spssNames, setSpssNames] = useState(false);
+  const downloadSpss = () => {
+    setExportError(null);
+    try {
+      const filtered = applyFilter(rows, def, knownVars);
+      if (!filtered.length) {
+        setExportError("SPSS uchun ma'lumot yo'q — filtrni tekshiring.");
+        return;
+      }
+      exportSpss(filtered, questions, `${fileBase}.sav`, {
+        includeNames: spssNames,
+        group: compareGroupCodes(filtered, def, compare, knownVars),
+      });
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'SPSS fayl yaratilmadi');
+    }
+  };
   const metrics = useMemo(() => chartMetrics(report, def), [report, def]);
   const effectiveMetricIds = useMemo(() => {
     const valid = chartMetricIds.filter((id) => metrics.some((m) => m.id === id));
@@ -357,6 +393,17 @@ ${view === 'chart' && rendered ? `<div style="margin:12px 0 18px">${rendered.svg
         rows: report.rows.map((r) => r.map((c) => c.text)),
         boldLastRow: isGrouped && report.rows.length > 1,
       });
+      if (comparison && comparison.rows.length) {
+        blocks.push({ type: 'h2', text: 'Guruhlararo taqqoslash' });
+        blocks.push({
+          type: 'table',
+          caption: comparison.title,
+          headers: comparison.headers,
+          rows: comparison.rows.map((r) => r.cells),
+          boldRows: comparison.rows.map((r, i) => (r.sig ? i : -1)).filter((i) => i >= 0),
+        });
+        comparison.notes.forEach((n) => blocks.push({ type: 'p', text: n, italic: true, small: true }));
+      }
       blocks.push({ type: 'h2', text: 'Metodika' });
       blocks.push({
         type: 'table',
@@ -889,6 +936,187 @@ ${view === 'chart' && rendered ? `<div style="margin:12px 0 18px">${rendered.svg
             </div>
           </section>
 
+          {/* 4. Taqqoslash */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <header className="p-4 border-b border-slate-100 flex flex-wrap items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-amber-500 text-white text-xs font-black flex items-center justify-center">4</span>
+              <Sigma className="w-4 h-4 text-amber-600" />
+              <h3 className="font-bold text-slate-800">Taqqoslash (statistik testlar)</h3>
+              <span className="text-xs text-slate-400">— Styudent t-mezoni, ANOVA, χ²; p &lt; 0,05 ishonchli</span>
+            </header>
+            <div className="p-4 space-y-4">
+              <div className="flex flex-wrap gap-1.5">
+                {([
+                  ['off', "O'chiq"],
+                  ['groupBy', "Guruhlar bo'yicha"],
+                  ['twoGroups', 'Ikki guruh (A va B)'],
+                ] as const).map(([m, l]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setCompare({ mode: m, groupExpr: m === 'groupBy' && !compare.groupExpr ? def.groupBy.find((g) => g.trim()) || 'q9' : compare.groupExpr })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                      compare.mode === m ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              {compare.mode === 'off' && (
+                <p className="text-xs text-slate-500">
+                  Yoqsangiz, 1-bosqichdagi har bir ustun guruhlar o'rtasida taqqoslanadi: miqdoriy ko'rsatkichlar uchun M ± m va t-mezoni
+                  (3+ guruhda ANOVA), sifat ko'rsatkichlari uchun n (%) va χ².
+                </p>
+              )}
+
+              {compare.mode === 'groupBy' && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Guruhlovchi belgi (formula)</label>
+                  <input
+                    type="text"
+                    value={compare.groupExpr}
+                    onChange={(e) => setCompare({ groupExpr: e.target.value })}
+                    placeholder="masalan: q9  yoki  jins  yoki  BUCKET(yosh, 40)"
+                    spellCheck={false}
+                    className={`w-full px-3 py-2 rounded-xl border font-mono text-sm focus:ring-2 focus:outline-none ${
+                      compare.groupExpr.trim() && validateFormula(compare.groupExpr, knownVars) ? 'border-red-300 bg-red-50 focus:ring-red-400' : 'border-slate-200 focus:ring-amber-500'
+                    }`}
+                  />
+                  {compare.groupExpr.trim() && validateFormula(compare.groupExpr, knownVars) && (
+                    <p className="text-[11px] text-red-600">{validateFormula(compare.groupExpr, knownVars)}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {GROUP_SNIPPETS.map((sn) => (
+                      <button
+                        key={sn.label}
+                        type="button"
+                        onClick={() => setCompare({ groupExpr: sn.expr })}
+                        className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-900 text-[11px] font-semibold hover:bg-amber-100"
+                        title={sn.expr}
+                      >
+                        {sn.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {compare.mode === 'twoGroups' && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {COMPARE_PRESETS.map((pr) => (
+                      <button
+                        key={pr.label}
+                        type="button"
+                        onClick={() => setCompare({ aExpr: pr.a, aLabel: pr.al, bExpr: pr.b, bLabel: pr.bl })}
+                        className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-900 text-[11px] font-semibold hover:bg-amber-100"
+                      >
+                        {pr.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(['a', 'b'] as const).map((side) => {
+                      const exprKey = side === 'a' ? 'aExpr' : 'bExpr';
+                      const labelKey = side === 'a' ? 'aLabel' : 'bLabel';
+                      const err = compare[exprKey].trim() ? validateFormula(compare[exprKey], knownVars) : 'Shart kiritilmagan';
+                      return (
+                        <div key={side} className="rounded-xl border border-slate-200 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-md bg-slate-800 text-white text-xs font-black flex items-center justify-center">
+                              {side.toUpperCase()}
+                            </span>
+                            <input
+                              type="text"
+                              value={compare[labelKey]}
+                              onChange={(e) => setCompare({ [labelKey]: e.target.value } as Partial<CompareConfig>)}
+                              placeholder="Guruh nomi"
+                              className="flex-1 px-2 py-1.5 rounded-lg border border-slate-200 text-sm font-semibold"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={compare[exprKey]}
+                            onChange={(e) => setCompare({ [exprKey]: e.target.value } as Partial<CompareConfig>)}
+                            placeholder='masalan: q44 = "Ha"'
+                            spellCheck={false}
+                            className={`w-full px-3 py-2 rounded-xl border font-mono text-sm ${err ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}
+                          />
+                          {err && <p className="text-[11px] text-red-600">{err}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {compare.mode !== 'off' && (
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Ikki guruh uchun t-mezoni:</span>
+                  {([
+                    ['student', 'Styudent (klassik)'],
+                    ['welch', 'Welch (dispersiyalar teng emas)'],
+                  ] as const).map(([k, l]) => (
+                    <label key={k} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" checked={compare.tKind === k} onChange={() => setCompare({ tKind: k })} />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {comparison && comparison.errors.length > 0 && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs space-y-1">
+                  {comparison.errors.map((e, i) => (
+                    <p key={i}>• {e}</p>
+                  ))}
+                </div>
+              )}
+
+              {comparison && comparison.rows.length > 0 && (
+                <div className="space-y-2">
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-xs">
+                      <thead className="bg-amber-50">
+                        <tr>
+                          {comparison.headers.map((h, i) => (
+                            <th key={i} className="text-left p-2.5 font-bold text-slate-700 border-b border-amber-100 whitespace-nowrap">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparison.rows.map((r, ri) => (
+                          <tr key={ri} className={`border-b border-slate-100 ${r.sig ? 'bg-amber-50/60 font-bold' : ''}`}>
+                            {r.cells.map((c, ci) => (
+                              <td key={ci} className="p-2.5 text-slate-700 align-top">
+                                {c}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {comparison.notes.map((n, i) => (
+                    <p key={i} className="text-[11px] text-slate-500">
+                      {n}
+                    </p>
+                  ))}
+                  <p className="text-[11px] text-slate-500">
+                    Bu jadval Excel ("Taqqoslash" varag'i), Word va chop etish fayllariga ham qo'shiladi.
+                  </p>
+                </div>
+              )}
+              {comparison && !comparison.errors.length && comparison.rows.length === 0 && (
+                <p className="text-xs text-slate-500">Taqqoslash uchun 1-bosqichda ustun qo'shing.</p>
+              )}
+            </div>
+          </section>
+
           {/* Natija */}
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <header className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
@@ -954,12 +1182,28 @@ ${view === 'chart' && rendered ? `<div style="margin:12px 0 18px">${rendered.svg
                 <button
                   type="button"
                   disabled={!report.rows.length || !!report.errors.length}
-                  onClick={() => exportReportToExcel(report, def)}
+                  onClick={() => exportReportToExcel(report, def, comparison)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-40"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   Excel
                 </button>
+                <span className="flex items-center rounded-xl border border-purple-200 overflow-hidden">
+                  <button
+                    type="button"
+                    disabled={!report.n}
+                    onClick={downloadSpss}
+                    title="Filtrdan o'tgan barcha xodimlar, barcha savollar kodlangan holda (qiymat yorliqlari bilan). Taqqoslash guruhi GURUH o'zgaruvchisi bo'ladi."
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-700 text-white text-sm font-bold hover:bg-purple-800 disabled:opacity-40"
+                  >
+                    <Download className="w-4 h-4" />
+                    SPSS (.sav)
+                  </button>
+                  <label className="flex items-center gap-1 px-2 text-[11px] text-purple-900 cursor-pointer" title="F.I.SH. ustunini SPSS faylga qo'shish">
+                    <input type="checkbox" checked={spssNames} onChange={(e) => setSpssNames(e.target.checked)} />
+                    F.I.SH.
+                  </label>
+                </span>
                 <button
                   type="button"
                   disabled={!report.rows.length || !!report.errors.length}

@@ -36,3 +36,11 @@ React + Vite frontend for the national multi-role portal API ([FastAPI docs](htt
 - **Eksport** — Excel (hisobot + metodika varag'i), CSV, chop etish/PDF. Shablonlar brauzerda saqlanadi.
 
 Formula dvigateli: `src/lib/formulaEngine.ts` (xavfsiz, `eval`siz). Funksiyalar ro'yxati paneldagi "Funksiyalar" bo'limida.
+
+## Biostatistika
+
+- **Testlar** (`src/lib/stats.ts`): Styudent t (klassik) va Welch t, bir omilli ANOVA, Pearson χ² (r×c; 2×2 da kutilgan < 5 bo'lsa Fisher), Puasson darajalar bir xilligi χ², OR (95% IO), Wilson IO. Natijalar SciPy bilan solishtirib tekshirilgan. p yonida `*` (<0,05), `**` (<0,01), `***` (<0,001); ishonchli qatorlar qalin.
+- **Konstruktor → 4. Taqqoslash**: guruhlar bo'yicha yoki ikki guruh (A/B formula) — har bir ustun uchun M ± m + t/ANOVA yoki n (%) + χ². Excel, Word va chop etishga qo'shiladi.
+- **Intensiv / ekstensiv**: agregatlar "Intensiv, % (100 ga)", "Intensiv, ‰ (1000 ga)", "Ekstensiv, % (jami)".
+- **Kasallanish va gigiyena** (admin bo'limi): 5 yillik VMLK (shablon yoki 16-VN shakli) va gigiyenik o'lchovlar importi — dinamika, tuzilma, intensiv ko'rsatkichlar, guruhlar taqqoslash; Excel/Word eksport. Ma'lumot brauzerda saqlanadi.
+- **SPSS (.sav)**: konstruktor (filtrdan o'tganlar, taqqoslash guruhi `GURUH`) va jonli N=400 tanlamasi; o'zgaruvchi/qiymat yorliqlari, UTF-8.

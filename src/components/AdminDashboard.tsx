@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -7,6 +7,7 @@ import {
   ClipboardList,
   FileSpreadsheet,
   FolderArchive,
+  FlaskConical,
   Loader2,
   LogOut,
   Menu,
@@ -44,6 +45,7 @@ import ExcelAnalysisPanel from './ExcelAnalysisPanel';
 import AdminBulkSurveyPanel from './AdminBulkSurveyPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminReportBuilder from './AdminReportBuilder';
+const MorbidityHygienePanel = lazy(() => import('./MorbidityHygienePanel'));
 import ApiStatusBanner from './ApiStatusBanner';
 import { t } from '../lib/lang';
 import { APP_BRAND } from '../lib/branding';
@@ -63,6 +65,7 @@ type TabId =
   | 'surveys'
   | 'reports'
   | 'excel'
+  | 'medimport'
   | 'questions'
   | 'bulk'
   | 'doctors'
@@ -87,6 +90,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { id: 'analytics', label: 'Qidiruv va tahlil', hint: 'Tez filtrlar', icon: Search },
       { id: 'surveys', label: "So'rovnomalar", hint: 'Har bir anketa', icon: ClipboardList },
       { id: 'reports', label: 'Hisobotlar N=400', hint: 'Jonli dissertatsiya jadvallari', icon: FolderArchive },
+      { id: 'medimport', label: 'Kasallanish va gigiyena', hint: "5 yillik kartalar, o'lchovlar (import)", icon: FlaskConical },
       { id: 'excel', label: 'Excel AI tahlil', hint: 'Fayl yuklash', icon: FileSpreadsheet },
     ],
   },
@@ -430,8 +434,19 @@ export default function AdminDashboard({
           )}
           {tab === 'bulk' && <AdminBulkSurveyPanel questionnaire={questionnaire} onComplete={loadAll} />}
           {tab === 'questions' && <QuestionEditor />}
+          {tab === 'medimport' && (
+            <Suspense
+              fallback={
+                <div className="flex justify-center py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                </div>
+              }
+            >
+              <MorbidityHygienePanel />
+            </Suspense>
+          )}
 
-          {loading && !['excel', 'reports', 'bulk', 'questions'].includes(tab) ? (
+          {loading && !['excel', 'reports', 'bulk', 'questions', 'medimport'].includes(tab) ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-500 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
               <p className="text-sm">{t("Ma'lumotlar yuklanmoqda...", language)}</p>
