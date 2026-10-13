@@ -6,6 +6,7 @@
 import * as XLSX from 'xlsx';
 import type { Question, SurveyResponseOut } from '../types/api';
 import { APP_EXPORT_PREFIX } from './branding';
+import { exportDocx, type DocBlock } from './docxExport';
 import { compileFormula, toNum, toStr, truthy, type Val } from './formulaEngine';
 import { buildRows, buildVariableCatalog, type ReportRow } from './reportBuilder';
 import {
@@ -576,7 +577,7 @@ export function buildLiveReport(
 
 // ── Eksport ───────────────────────────────────────────
 
-function methodologyRows(rep: LiveReport): (string | number)[][] {
+export function methodologyRows(rep: LiveReport): (string | number)[][] {
   const o = rep.options;
   return [
     ['Hisobot', 'Donozologik monitoring — anketa natijalari (jonli hisob)'],
@@ -675,4 +676,23 @@ ${rep.sections.map((s) => `<h2>${esc(s.title)}</h2>${s.tables.map(tableHtml).joi
 <script>window.onload=function(){window.print()}</script></body></html>`;
   w.document.write(html);
   w.document.close();
+}
+
+export async function exportLiveReportWord(rep: LiveReport): Promise<void> {
+  const blocks: DocBlock[] = [
+    { type: 'title', text: `Anketa natijalari tahlili (N = ${rep.n})` },
+    { type: 'h1', text: 'Metodika' },
+    { type: 'kv', rows: methodologyRows(rep).map((r) => [String(r[0] ?? ''), String(r[1] ?? '')] as [string, string]) },
+  ];
+  rep.sections.forEach((sec) => {
+    blocks.push({ type: 'h1', text: sec.title });
+    sec.tables.forEach((t) => {
+      blocks.push({ type: 'table', caption: t.title, headers: t.headers, rows: t.rows, boldLastRow: t.totalRow });
+      if (t.note) blocks.push({ type: 'p', text: `Izoh: ${t.note}`, italic: true, small: true });
+    });
+  });
+  await exportDocx(blocks, {
+    filename: `${APP_EXPORT_PREFIX}_Anketa_Tahlili_N${rep.n}_${new Date().toISOString().slice(0, 10)}.docx`,
+    landscape: true,
+  });
 }

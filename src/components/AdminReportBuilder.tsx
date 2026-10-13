@@ -18,8 +18,16 @@ import {
   Trash2,
   Wand2,
   X,
+  BarChart3,
+  ImageDown,
+  Loader2,
+  Table2,
 } from 'lucide-react';
 import { getSurveyQuestions } from '../lib/api';
+import { downloadBlob, renderChart, svgToPng, type ChartKind } from '../lib/chartSvg';
+import { buildChartSpec, chartMetrics, pieAllowed } from '../lib/reportChart';
+import { exportDocx, type DocBlock } from '../lib/docxExport';
+import { APP_EXPORT_PREFIX } from '../lib/branding';
 import { FUNCTIONS, validateFormula } from '../lib/formulaEngine';
 import {
   AGG_LABELS,
@@ -238,7 +246,7 @@ export default function AdminReportBuilder({ surveys, questionnaire, people, peo
 table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #cbd5e1;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f1f5f9}tr:last-child td{font-weight:${report.grouped ? 700 : 400}}
 @media print{body{padding:0}}</style></head><body>
 <h1>${esc(def.name)}</h1><p>N = ${report.n} / ${report.total} · ${esc(new Date().toLocaleString('uz-UZ'))}${def.filter ? ` · Filtr: <code>${esc(def.filter)}</code>` : ''}${isGrouped ? ` · Guruh: <code>${esc(def.groupBy.filter(Boolean).join(', '))}</code>` : ''}</p>
-<table><thead><tr>${report.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+${view === 'chart' && rendered ? `<div style="margin:12px 0 18px">${rendered.svg.replace('<svg ', '<svg style="width:100%;height:auto" ')}</div>` : ''}<table><thead><tr>${report.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
 <tbody>${report.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c.text)}</td>`).join('')}</tr>`).join('')}</tbody></table>
 <script>window.onload=function(){window.print()}</script></body></html>`;
     w.document.write(html);
@@ -249,6 +257,125 @@ table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid 
   const filterError = def.filter.trim() ? validateFormula(def.filter, knownVars) : null;
 
   const previewRows = report.rows.slice(0, 300);
+
+  // ── Diagramma ──
+  const [view, setView] = useState<'table' | 'chart'>('table');
+  const [chartKind, setChartKind] = useState<ChartKind | 'auto'>('auto');
+  const [chartMetricIds, setChartMetricIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const metrics = useMemo(() => chartMetrics(report, def), [report, def]);
+  const effectiveMetricIds = useMemo(() => {
+    const valid = chartMetricIds.filter((id) => metrics.some((m) => m.id === id));
+    if (valid.length) return valid;
+    // Standart: guruhlanganda birinchi ustun ko'rsatkichi (bo'lmasa N), aks holda birinchi ustun
+    if (isGrouped) return [metrics.find((m) => !m.id.startsWith('__'))?.id ?? metrics[0]?.id].filter(Boolean) as string[];
+    return metrics[0] ? [metrics[0].id] : [];
+  }, [chartMetricIds, metrics, isGrouped]);
+  const groupLabels = useMemo(
+    () =>
+      def.groupBy
+        .filter((g) => g.trim())
+        .map((g) => {
+          const snip = GROUP_SNIPPETS.find((x) => x.expr === g.trim());
+          if (snip) return snip.label;
+          const v = catalog.find((c) => c.name === g.trim().toLowerCase());
+          if (!v) return g.trim();
+          const text = v.label.replace(/^\d+[a-z]?\.\s*/, '').replace(/^Iltimos,\s*/i, '').split('(')[0].trim();
+          return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+        }),
+    [def.groupBy, catalog]
+  );
+  const chartSpec = useMemo(
+    () => buildChartSpec(report, def, { kind: chartKind, metricIds: effectiveMetricIds, comma: true, groupLabels }),
+    [report, def, chartKind, effectiveMetricIds, groupLabels]
+  );
+  const rendered = useMemo(() => (chartSpec ? renderChart(chartSpec) : null), [chartSpec]);
+  const canPie = pieAllowed(report, effectiveMetricIds) && (chartSpec?.categories.length ?? 99) <= 6;
+
+  const toggleMetric = (id: string) => {
+    if (!isGrouped) {
+      setChartMetricIds([id]);
+      return;
+    }
+    const m = metrics.find((x) => x.id === id);
+    const cur = effectiveMetricIds;
+    const curUnit = metrics.find((x) => x.id === cur[0])?.unit;
+    if (!m) return;
+    if (cur.includes(id)) {
+      const next = cur.filter((x) => x !== id);
+      setChartMetricIds(next.length ? next : [id]);
+    } else if (m.unit !== curUnit) {
+      // Har xil birliklar bitta o'qda chizilmaydi — tanlov almashtiriladi
+      setChartMetricIds([id]);
+    } else {
+      setChartMetricIds([...cur, id].slice(-4));
+    }
+  };
+
+  const fileBase = `${APP_EXPORT_PREFIX}_${(def.name || 'Hisobot').replace(/[^\w\u0400-\u04FF'-]+/g, '_').slice(0, 60)}_${new Date().toISOString().slice(0, 10)}`;
+
+  const downloadPng = async () => {
+    if (!rendered) return;
+    setBusy('png');
+    setExportError(null);
+    try {
+      downloadBlob(await svgToPng(rendered), `${fileBase}.png`);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'PNG yaratilmadi');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadWord = async () => {
+    setBusy('word');
+    setExportError(null);
+    try {
+      const blocks: DocBlock[] = [
+        { type: 'title', text: def.name || 'Hisobot' },
+        {
+          type: 'kv',
+          rows: [
+            ['Sana', new Date().toLocaleString('uz-UZ')],
+            ["Jami so'rovnomalar", report.total],
+            ["Filtrdan o'tgan (N)", report.n],
+            ['Filtr', def.filter.trim() || "yo'q"],
+            ['Guruhlash', def.groupBy.filter((g) => g.trim()).join(', ') || "yo'q"],
+          ],
+        },
+      ];
+      if (rendered && chartSpec) {
+        const png = new Uint8Array(await (await svgToPng(rendered)).arrayBuffer());
+        blocks.push({ type: 'h2', text: 'Diagramma' });
+        blocks.push({ type: 'image', png, width: rendered.width, height: rendered.height, caption: chartSpec.title });
+      }
+      blocks.push({ type: 'h2', text: 'Jadval' });
+      blocks.push({
+        type: 'table',
+        headers: report.headers,
+        rows: report.rows.map((r) => r.map((c) => c.text)),
+        boldLastRow: isGrouped && report.rows.length > 1,
+      });
+      blocks.push({ type: 'h2', text: 'Metodika' });
+      blocks.push({
+        type: 'table',
+        headers: ['Ustun', 'Formula', isGrouped ? 'Agregat' : ''].filter(Boolean),
+        rows: def.columns.map((c) => [c.label || c.expr, c.expr, ...(isGrouped ? [AGG_LABELS[c.agg]] : [])]),
+      });
+      blocks.push({
+        type: 'p',
+        small: true,
+        italic: true,
+        text: "M — o'rtacha; m — standart xato (SD/√n); 95% IO — M ± 1,96·m; % — guruh ichidagi ulush.",
+      });
+      await exportDocx(blocks, { filename: `${fileBase}.docx`, landscape: report.headers.length > 6 });
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Word fayl yaratilmadi');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   // ── Render ────────────────────────────────────────
 
@@ -781,7 +908,49 @@ table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid 
                   <p className="text-[11px] text-slate-500">Ko'rinishda birinchi {previewRows.length} qator; eksportda hammasi.</p>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => setView('table')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition ${
+                      view === 'table' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Table2 className="w-4 h-4" />
+                    Jadval
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView('chart')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition ${
+                      view === 'chart' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    Diagramma
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  disabled={!report.rows.length || !!report.errors.length || busy !== null}
+                  onClick={downloadWord}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-700 text-white text-sm font-bold hover:bg-blue-800 disabled:opacity-40"
+                >
+                  {busy === 'word' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  Word
+                </button>
+                {view === 'chart' && (
+                  <button
+                    type="button"
+                    disabled={!rendered || busy !== null}
+                    onClick={downloadPng}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-40"
+                  >
+                    {busy === 'png' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageDown className="w-4 h-4" />}
+                    Diagramma PNG
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!report.rows.length || !!report.errors.length}
@@ -821,7 +990,81 @@ table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid 
               </div>
             )}
 
-            <div className="overflow-x-auto">
+            {exportError && (
+              <div className="m-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">{exportError}</div>
+            )}
+
+            {view === 'chart' && (
+              <div className="p-4 space-y-3">
+                {metrics.length > 0 && (
+                  <div className="flex flex-wrap items-start gap-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Turi</p>
+                      <div className="flex flex-wrap gap-1">
+                        {([
+                          ['auto', 'Avto'],
+                          ['bar', 'Ustun'],
+                          ['hbar', 'Gorizontal'],
+                          ['line', 'Chiziq'],
+                          ['pie', 'Doira'],
+                        ] as const).map(([k, l]) => (
+                          <button
+                            key={k}
+                            type="button"
+                            disabled={k === 'pie' && !canPie}
+                            title={k === 'pie' && !canPie ? 'Doira faqat bitta "N" yoki "%" ko\'rsatkichi va 6 tagacha guruh uchun' : undefined}
+                            onClick={() => setChartKind(k)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-30 ${
+                              chartKind === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                        {isGrouped ? "Ko'rsatkich (bir xil birlikdagi 4 tagacha)" : 'Qaysi ustun taqsimoti'}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {metrics.map((m) => {
+                          const on = effectiveMetricIds.includes(m.id);
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => toggleMetric(m.id)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${
+                                on ? 'bg-indigo-50 text-indigo-800 border-indigo-300' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              {on ? '✓ ' : ''}
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {rendered ? (
+                  <div
+                    className="w-full overflow-x-auto rounded-xl border border-slate-100 [&_svg]:w-full [&_svg]:h-auto [&_svg]:min-w-[640px]"
+                    dangerouslySetInnerHTML={{ __html: rendered.svg }}
+                  />
+                ) : (
+                  <p className="p-8 text-center text-sm text-slate-500">
+                    Diagramma uchun natija yo'q — ustun qo'shing yoki filtrni o'zgartiring.
+                  </p>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  Ustun ustiga sichqonchani olib borsangiz, aniq qiymat ko'rinadi. Word faylga shu diagramma va jadval birga tushadi.
+                </p>
+              </div>
+            )}
+
+            <div className={`overflow-x-auto ${view === 'chart' ? 'hidden' : ''}`}>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 sticky top-0">
                   <tr>

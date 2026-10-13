@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, FileSpreadsheet, Printer, RefreshCw, Settings2, Users } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileText, Loader2, Printer, RefreshCw, Settings2, Users } from 'lucide-react';
 import { validateFormula } from '../lib/formulaEngine';
 import { buildVariableCatalog } from '../lib/reportBuilder';
 import {
   HODISA_PRESETS,
   buildLiveReport,
   exportLiveReportExcel,
+  exportLiveReportWord,
   printLiveReport,
   type LiveReportOptions,
   type LiveTable,
@@ -32,6 +33,8 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
   const [latestPerUser, setLatestPerUser] = useState(true);
   const [activeSection, setActiveSection] = useState('A');
   const [showSettings, setShowSettings] = useState(false);
+  const [wordBusy, setWordBusy] = useState(false);
+  const [wordError, setWordError] = useState<string | null>(null);
 
   const known = useMemo(() => new Set(buildVariableCatalog(questions, surveys).map((v) => v.name)), [questions, surveys]);
   const hodisaExpr = preset === CUSTOM ? customExpr : preset;
@@ -95,6 +98,26 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
             >
               <FileSpreadsheet className="w-4 h-4" />
               Excel (barcha jadvallar)
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!report) return;
+                setWordBusy(true);
+                setWordError(null);
+                try {
+                  await exportLiveReportWord(report);
+                } catch (e) {
+                  setWordError(e instanceof Error ? e.message : 'Word fayl yaratilmadi');
+                } finally {
+                  setWordBusy(false);
+                }
+              }}
+              disabled={!report || report.n === 0 || wordBusy}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold disabled:opacity-40"
+            >
+              {wordBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+              Word
             </button>
             <button
               type="button"
@@ -210,6 +233,8 @@ export default function LiveN400Report({ surveys, questionnaire, loading, onRelo
           </div>
         )}
       </div>
+
+      {wordError && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">{wordError}</div>}
 
       {report && report.warnings.length > 0 && (
         <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">

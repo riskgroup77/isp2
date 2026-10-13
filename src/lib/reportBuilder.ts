@@ -246,6 +246,9 @@ export interface ReportDefinition {
 export interface ComputedCell {
   raw: Val;
   text: string;
+  /** Diagramma xato chiziqlari uchun: quyi va yuqori chegara (M ± m yoki 95% IO) */
+  lo?: number;
+  hi?: number;
 }
 
 export interface ComputedReport {
@@ -333,7 +336,9 @@ export function aggregate(vals: Val[], fn: AggFn, groupSize: number): ComputedCe
       const m = meanOf(ns);
       const se = seOf(ns);
       if (m === null) return { raw: null, text: '' };
-      return { raw: m, text: se === null ? fmtNum(m) : `${fmtNum(m)} ± ${fmtNum(se)}` };
+      return se === null
+        ? { raw: m, text: fmtNum(m) }
+        : { raw: m, text: `${fmtNum(m)} ± ${fmtNum(se)}`, lo: m - se, hi: m + se };
     }
     case 'median': {
       const md = medianOf(ns);
@@ -351,7 +356,7 @@ export function aggregate(vals: Val[], fn: AggFn, groupSize: number): ComputedCe
       const m = meanOf(ns);
       const se = seOf(ns);
       if (m === null || se === null) return { raw: m, text: fmtNum(m) };
-      return { raw: m, text: `${fmtNum(m - 1.96 * se)} – ${fmtNum(m + 1.96 * se)}` };
+      return { raw: m, text: `${fmtNum(m - 1.96 * se)} – ${fmtNum(m + 1.96 * se)}`, lo: m - 1.96 * se, hi: m + 1.96 * se };
     }
     case 'first': {
       const v = vals.find((x) => x !== null && toStr(x) !== '') ?? null;
