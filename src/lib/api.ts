@@ -97,6 +97,19 @@ export async function getSurveyQuestions(): Promise<Questionnaire> {
   return data;
 }
 
+let questionsCache: Promise<Questionnaire> | null = null;
+
+/** Savolnoma bir marta yuklanadi va keshda saqlanadi (xato bo'lsa keyingi safar qayta so'raladi) */
+export function getSurveyQuestionsCached(): Promise<Questionnaire> {
+  if (!questionsCache) {
+    questionsCache = getSurveyQuestions().catch((e) => {
+      questionsCache = null;
+      throw e;
+    });
+  }
+  return questionsCache;
+}
+
 export async function submitSurvey(
   answers: Record<string, unknown>,
   klinik: ClinicalData,

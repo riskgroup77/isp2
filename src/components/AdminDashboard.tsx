@@ -678,6 +678,7 @@ export default function AdminDashboard({
                         key={selectedSurvey.id}
                         survey={selectedSurvey}
                         tahlil={selectedSurvey.ai_response}
+                        questionnaire={questionnaire}
                         user={
                           people.get(selectedSurvey.user_id)
                             ? {

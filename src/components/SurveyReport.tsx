@@ -8,13 +8,15 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import { reanalyzeSurvey } from '../lib/api';
+import { getSurveyQuestionsCached, reanalyzeSurvey } from '../lib/api';
 import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
-import type { AIReport, ClinicalData, SurveyResponseOut, SurveySubmitResponse } from '../types/api';
+import type { AIReport, ClinicalData, Questionnaire, SurveyResponseOut, SurveySubmitResponse } from '../types/api';
 import { buildRows } from '../lib/reportBuilder';
 import { toNum, toStr } from '../lib/formulaEngine';
 import type { UserProfile } from '../types';
 import DiseaseRiskPrognosis from './DiseaseRiskPrognosis';
+import SurveyAnswers from './SurveyAnswers';
+import { getOptionDisplayLabel, getQuestionDisplayText } from '../lib/questionnaireI18n';
 import { t } from '../lib/lang';
 import { APP_BRAND, APP_EXPORT_PREFIX } from '../lib/branding';
 
@@ -29,6 +31,8 @@ interface SurveyReportProps {
   onClose?: () => void;
   /** Anketa yuborilganda kiritilgan klinik ma'lumotlar (serverda saqlanmagan bo'lishi mumkin) */
   clinical?: ClinicalData | null;
+  /** Ota komponentda yuklangan savolnoma (bo'lmasa o'zi yuklaydi) */
+  questionnaire?: Questionnaire | null;
 }
 
 export default function SurveyReport({
@@ -39,6 +43,7 @@ export default function SurveyReport({
   onUpdated,
   onClose,
   clinical,
+  questionnaire: questionnaireProp,
 }: SurveyReportProps) {
   const [reanalyzing, setReanalyzing] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -48,6 +53,19 @@ export default function SurveyReport({
   );
 
   const report = localTahlil;
+  const [loadedQuestionnaire, setQuestionnaire] = React.useState<Questionnaire | null>(null);
+  const [qError, setQError] = React.useState<string | null>(null);
+  const questionnaire = questionnaireProp ?? loadedQuestionnaire;
+  React.useEffect(() => {
+    if (questionnaireProp) return;
+    let alive = true;
+    getSurveyQuestionsCached()
+      .then((q) => alive && setQuestionnaire(q))
+      .catch((e) => alive && setQError(formatApiError(e)));
+    return () => {
+      alive = false;
+    };
+  }, [questionnaireProp]);
 
   // Shu anketaning o'z ma'lumotlari: javoblardan + klinik bosqichdan
   const person = React.useMemo(() => {
@@ -74,11 +92,25 @@ export default function SurveyReport({
       vazn: num(clinical?.vazn, ctx.vazn),
       boy: num(clinical?.boy, ctx.boy),
       glyukoza: num(clinical?.glyukoza, ctx.glyukoza),
-      chekish: toStr((a['51'] ?? null) as never).includes('Hozirda chekaman'),
+      chekish: (() => {
+        const sm = toStr((a['51'] ?? null) as never).trim().toLowerCase();
+        return sm.includes('hozirda') || sm === 'ha';
+      })(),
+      bmi: (() => {
+        const w = num(clinical?.vazn, ctx.vazn);
+        const h = num(clinical?.boy, ctx.boy);
+        if (w && h) return Math.round((w / ((h / 100) * (h / 100))) * 10) / 10;
+        const b = num(ctx.bmi);
+        return b;
+      })(),
     };
   }, [localSurvey, clinical, user]);
   const zoneStyle = getRiskZoneStyle(localSurvey.risk_zonasi || report?.zona);
   const hasAiError = !report && (localSurvey.ai_xato || !initialTahlil);
+  const tmiValue = report?.tmi ?? person.bmi ?? null;
+  const tmiCategory = (v: number | null | undefined) =>
+    v === null || v === undefined ? '' : v < 18.5 ? 'Vazn yetishmasligi' : v < 25 ? "Me'yor" : v < 30 ? 'Ortiqcha vazn' : 'Semizlik';
+  const riskValue = report?.riskFoizi ?? localSurvey.score_total;
 
   const handleReanalyze = async () => {
     setReanalyzing(true);
@@ -147,9 +179,16 @@ export default function SurveyReport({
       doc.text(title, 14, y);
       y += 6;
       doc.setFontSize(9);
-      const lines = doc.splitTextToSize(text, 180);
-      doc.text(lines, 14, y);
-      y += lines.length * 4 + 6;
+      const lines: string[] = doc.splitTextToSize(text, 180);
+      lines.forEach((ln) => {
+        if (y > 285) {
+          doc.addPage();
+          y = 15;
+        }
+        doc.text(ln, 14, y);
+        y += 4;
+      });
+      y += 6;
     };
 
     addSection('Statistika', r?.statistika?.matn);
@@ -161,6 +200,23 @@ export default function SurveyReport({
       addSection('Tavsiyalar', r.xulosaVaTavsiyalar.tavsiyalar.join('\n• '));
     }
     if (r?.klinikXulosa) addSection('Klinik xulosa', r.klinikXulosa);
+
+    if (!r) addSection('Izoh', "Bu anketa AI tahlilisiz saqlangan; xavf balli server hisoblagan ball bo'yicha.");
+    if (questionnaire) {
+      const ans = localSurvey.answers as Record<string, unknown>;
+      const lines = questionnaire.questions
+        .filter((q) => String(q.id) !== '1')
+        .map((q) => {
+          const v = ans[String(q.id)];
+          if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) return null;
+          const val = Array.isArray(v)
+            ? v.map((x) => getOptionDisplayLabel(q, String(x), 'lotin')).join('; ')
+            : getOptionDisplayLabel(q, String(v), 'lotin');
+          return `${q.id}. ${getQuestionDisplayText(q, 'lotin')}: ${val}`;
+        })
+        .filter((x): x is string => !!x);
+      if (lines.length) addSection('Anketa javoblari', lines.join('\n'));
+    }
 
     doc.save(`${APP_EXPORT_PREFIX.toLowerCase()}-hisobot-${localSurvey.id.slice(0, 8)}.pdf`);
   };
@@ -210,6 +266,19 @@ export default function SurveyReport({
 
       {errorMsg && (
         <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{errorMsg}</div>
+      )}
+
+      {!report && !localSurvey.ai_xato && (
+        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex gap-3">
+          <AlertTriangle className="w-5 h-5 text-blue-600 shrink-0" />
+          <div>
+            <p className="font-bold text-blue-900 text-sm">Bu anketa AI tahlilisiz saqlangan</p>
+            <p className="text-xs text-blue-800 mt-1">
+              Xavf balli va zona server hisoblagan ball bo'yicha. Xavf omillari, klinik xulosa va tavsiyalar uchun "Qayta tahlil qilish" tugmasini
+              bosing. Xodimning barcha javoblari pastdagi "Anketa javoblari" bo'limida.
+            </p>
+          </div>
+        </div>
       )}
 
       {localSurvey.ai_xato && !report && (
@@ -263,8 +332,11 @@ export default function SurveyReport({
         </div>
         <div className="p-5 rounded-2xl border border-slate-200 bg-white text-center">
           <p className="text-[10px] uppercase font-bold text-slate-500">TMI</p>
-          <p className="text-2xl font-black text-slate-800">{report?.tmi ?? '—'}</p>
-          <p className="text-xs text-slate-500">{report?.tmiKategoriya || ''}</p>
+          <p className="text-2xl font-black text-slate-800">{tmiValue ?? '—'}</p>
+          <p className="text-xs text-slate-500">
+            {report?.tmiKategoriya ||
+              (tmiValue !== null ? tmiCategory(tmiValue) : person.vazn ? "Bo'y kiritilmagan — TMI hisoblanmadi" : "Vazn va bo'y kiritilmagan")}
+          </p>
         </div>
       </div>
 
@@ -346,11 +418,11 @@ export default function SurveyReport({
         <ReportBlock title="Klinik xulosa" content={report.klinikXulosa} />
       )}
 
-      {report && (
+      {(report || typeof riskValue === 'number') && (
         <DiseaseRiskPrognosis
           input={{
-            riskFoizi: report.riskFoizi,
-            tmi: report.tmi ?? undefined,
+            riskFoizi: riskValue,
+            tmi: tmiValue ?? undefined,
             answers: localSurvey.answers,
             sistolik: person.sistolik,
             diastolik: person.diastolik,
@@ -361,6 +433,14 @@ export default function SurveyReport({
           }}
         />
       )}
+
+      <SurveyAnswers
+        answers={localSurvey.answers as Record<string, unknown>}
+        questionnaire={questionnaire}
+        language={language}
+        defaultOpen={!report}
+        loadError={qError}
+      />
     </div>
   );
 }
