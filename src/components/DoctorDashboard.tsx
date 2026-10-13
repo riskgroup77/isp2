@@ -368,6 +368,7 @@ export default function DoctorDashboard({
 
               {selectedSurvey ? (
                 <SurveyReport
+                  key={selectedSurvey.id}
                   survey={selectedSurvey}
                   tahlil={selectedSurvey.ai_response}
                   language={language}

@@ -17,6 +17,8 @@ import { t } from '../lib/lang';
 import { APP_BRAND, APP_EXPORT_PREFIX } from '../lib/branding';
 
 interface SurveyReportProps {
+  /** Loyiha @types/react'siz — key'ni prop sifatida e'lon qilish kerak */
+  key?: string;
   survey: SurveyResponseOut;
   tahlil?: AIReport | null;
   user?: UserProfile | null;
