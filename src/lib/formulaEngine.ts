@@ -248,13 +248,22 @@ function eq(a: Val, b: Val): boolean {
   return norm(toStr(a)) === norm(toStr(b));
 }
 
+function isNumericStr(v: Val): boolean {
+  return typeof v === 'string' && /^\s*[-+]?\d+([.,]\d+)?\s*$/.test(v);
+}
+
 function cmp(a: Val, b: Val): number | null {
-  const na = toNum(a);
-  const nb = toNum(b);
-  if (na !== null && nb !== null && (typeof a !== 'string' || typeof b !== 'string' || (/^[-+]?\d/.test(String(a).trim()) && /^[-+]?\d/.test(String(b).trim())))) {
-    return na === nb ? 0 : na < nb ? -1 : 1;
-  }
   if (a === null || b === null) return null;
+  const aNum = typeof a === 'number' || typeof a === 'boolean' || isNumericStr(a);
+  const bNum = typeof b === 'number' || typeof b === 'boolean' || isNumericStr(b);
+  // Raqam bilan solishtirilsa ("140/90" >= 140) yoki ikkalasi ham sof son bo'lsa — son sifatida.
+  // Aks holda matn sifatida: ISO sanalar ("2026-09-01") to'g'ri tartiblanadi.
+  if (typeof a === 'number' || typeof b === 'number' || (aNum && bNum)) {
+    const na = toNum(a);
+    const nb = toNum(b);
+    if (na !== null && nb !== null) return na === nb ? 0 : na < nb ? -1 : 1;
+    return null;
+  }
   const sa = norm(toStr(a));
   const sb = norm(toStr(b));
   return sa === sb ? 0 : sa < sb ? -1 : 1;
