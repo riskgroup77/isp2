@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type {
+  AdminUserListItem,
   AdvisorChatResponse,
   ApiUserProfile,
   ClinicalData,
@@ -165,6 +166,12 @@ export async function verifyDoctor(doctorId: string): Promise<Record<string, str
     `/api/admin/verify-doctor/${doctorId}`
   );
   return data;
+}
+
+/** Admin uchun barcha foydalanuvchilar (id, login, ism, rol) */
+export async function getAdminUsers(): Promise<AdminUserListItem[]> {
+  const { data } = await apiClient.get<{ foydalanuvchilar: AdminUserListItem[] }>('/api/admin/statistics/users');
+  return data?.foydalanuvchilar ?? [];
 }
 
 export async function getSystemLogs(): Promise<string[]> {

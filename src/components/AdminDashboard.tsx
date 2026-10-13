@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
+  getAdminUsers,
   getAllSurveyResponses,
   getDashboardStats,
   getSurveyQuestions,
@@ -34,7 +35,7 @@ import {
   API_BASE_URL,
 } from '../lib/api';
 import { formatApiError, getRiskZoneStyle, RISK_ZONE_CONFIG } from '../lib/surveyUtils';
-import type { DashboardStats, Questionnaire, SurveyResponseOut } from '../types/api';
+import type { DashboardStats, PersonInfo, Questionnaire, SurveyResponseOut } from '../types/api';
 import type { UserProfile } from '../types';
 import SurveyReport from './SurveyReport';
 import SurveyAnalyticsPanel from './SurveyAnalyticsPanel';
@@ -110,6 +111,8 @@ export default function AdminDashboard({
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyResponseOut[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const [people, setPeople] = useState<Map<string, PersonInfo>>(new Map());
+  const [peopleError, setPeopleError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabId>('dashboard');
   const [navOpen, setNavOpen] = useState(false);
@@ -125,11 +128,18 @@ export default function AdminDashboard({
   const loadAll = async () => {
     setLoading(true);
     setErrorMsg(null);
-    const [statsR, surveysR, logsR] = await Promise.allSettled([
+    const [statsR, surveysR, logsR, usersR] = await Promise.allSettled([
       getDashboardStats(),
       getAllSurveyResponses(),
       getSystemLogs(),
+      getAdminUsers(),
     ]);
+    if (usersR.status === 'fulfilled') {
+      setPeople(new Map(usersR.value.map((u) => [u.id, { id: u.id, ism: u.ism, login: u.login }])));
+      setPeopleError(null);
+    } else {
+      setPeopleError(formatApiError(usersR.reason));
+    }
     const problems: string[] = [];
     if (statsR.status === 'fulfilled') setStats(statsR.value);
     else problems.push(`Statistika: ${formatApiError(statsR.reason)}`);
@@ -222,11 +232,13 @@ export default function AdminDashboard({
       (s) =>
         s.id.toLowerCase().includes(q) ||
         s.user_id.toLowerCase().includes(q) ||
+        (people.get(s.user_id)?.ism || '').toLowerCase().includes(q) ||
+        (people.get(s.user_id)?.login || '').toLowerCase().includes(q) ||
         (s.risk_zonasi || '').toLowerCase().includes(q) ||
         String(s.score_total).includes(q) ||
         new Date(s.created_at).toLocaleDateString('uz-UZ').includes(q)
     );
-  }, [surveys, surveySearch]);
+  }, [surveys, surveySearch, people]);
 
   const activeNav = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.id === tab);
 
@@ -542,7 +554,7 @@ export default function AdminDashboard({
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-semibold text-slate-800 truncate">
-                                  {s.ai_response?.klinikXulosa || s.klinik_xulosa || `Ball: ${s.score_total}`}
+                                  {people.get(s.user_id)?.ism || s.ai_response?.klinikXulosa || s.klinik_xulosa || `Ball: ${s.score_total}`}
                                 </span>
                                 <span className="block text-[11px] text-slate-500 font-mono">
                                   {new Date(s.created_at).toLocaleString('uz-UZ')} · {s.answered_count} javob
@@ -573,7 +585,15 @@ export default function AdminDashboard({
                 </div>
               )}
 
-              {tab === 'builder' && <AdminReportBuilder surveys={surveys} questionnaire={questionnaire} language={language} />}
+              {tab === 'builder' && (
+                <AdminReportBuilder
+                  surveys={surveys}
+                  questionnaire={questionnaire}
+                  people={people}
+                  peopleError={peopleError}
+                  language={language}
+                />
+              )}
 
               {tab === 'analytics' && (
                 <SurveyAnalyticsPanel
@@ -601,7 +621,7 @@ export default function AdminDashboard({
                           type="text"
                           value={surveySearch}
                           onChange={(e) => setSurveySearch(e.target.value)}
-                          placeholder="ID, zona, sana, ball..."
+                          placeholder="Ism, login, zona, sana..."
                           className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         />
                       </div>
@@ -625,7 +645,7 @@ export default function AdminDashboard({
                             <span className="min-w-0 flex-1">
                               <span className="block text-xs font-mono text-slate-500">{new Date(s.created_at).toLocaleString('uz-UZ')}</span>
                               <span className="block text-sm font-bold text-slate-800">
-                                Ball: {s.score_total} · {s.answered_count} javob
+                                {people.get(s.user_id)?.ism || `Ball: ${s.score_total} · ${s.answered_count} javob`}
                               </span>
                             </span>
                             <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded text-white" style={{ backgroundColor: style.color }}>
@@ -643,6 +663,17 @@ export default function AdminDashboard({
                         key={selectedSurvey.id}
                         survey={selectedSurvey}
                         tahlil={selectedSurvey.ai_response}
+                        user={
+                          people.get(selectedSurvey.user_id)
+                            ? {
+                                id: selectedSurvey.user_id,
+                                login: people.get(selectedSurvey.user_id)!.login,
+                                ism: people.get(selectedSurvey.user_id)!.ism,
+                                rol: 'xodim',
+                                yaratilganSana: '',
+                              }
+                            : null
+                        }
                         language={language}
                         onUpdated={(r) => {
                           setSurveys((prev) => prev.map((s) => (s.id === r.response.id ? r.response : s)));

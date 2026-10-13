@@ -143,6 +143,24 @@ export interface PatientListItem {
   latest_risk_score?: number | null;
 }
 
+/** Admin: GET /api/admin/statistics/users elementi */
+export interface AdminUserListItem {
+  id: string;
+  login: string;
+  ism: string;
+  rol: string;
+  topshiriqlarSoni: number;
+}
+
+/** Hisobotlarda xodimni aniqlash uchun minimal ma'lumot */
+export interface PersonInfo {
+  id: string;
+  ism: string;
+  login: string;
+  jins?: Gender;
+  yosh?: number;
+}
+
 export interface DashboardStats {
   total_employees: number;
   high_risk_percentage: number;

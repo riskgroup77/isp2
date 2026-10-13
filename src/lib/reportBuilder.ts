@@ -4,7 +4,7 @@
  * Excel/CSV ga eksport qiladi.
  */
 import * as XLSX from 'xlsx';
-import type { PatientListItem, Question, SurveyResponseOut } from '../types/api';
+import type { PersonInfo, Question, SurveyResponseOut } from '../types/api';
 import { APP_EXPORT_PREFIX } from './branding';
 import {
   ageFromDate,
@@ -116,7 +116,7 @@ function parseBP(text: unknown): { sys: number | null; dia: number | null } {
 export function buildRows(
   surveys: SurveyResponseOut[],
   questions: Question[],
-  patientsById?: Map<string, PatientListItem>
+  patientsById?: Map<string, PersonInfo>
 ): ReportRow[] {
   const qById = new Map(questions.map((q) => [String(q.id), q]));
   return surveys.map((s) => {

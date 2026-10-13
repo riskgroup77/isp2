@@ -19,7 +19,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
-import { getDoctorPatients, getSurveyQuestions } from '../lib/api';
+import { getSurveyQuestions } from '../lib/api';
 import { FUNCTIONS, validateFormula } from '../lib/formulaEngine';
 import {
   AGG_LABELS,
@@ -37,12 +37,14 @@ import {
   type ReportDefinition,
   type VariableDef,
 } from '../lib/reportBuilder';
-import { formatApiError } from '../lib/surveyUtils';
-import type { PatientListItem, Question, Questionnaire, SurveyResponseOut } from '../types/api';
+import type { PersonInfo, Question, Questionnaire, SurveyResponseOut } from '../types/api';
 
 interface Props {
   surveys: SurveyResponseOut[];
   questionnaire: Questionnaire | null;
+  /** user_id → ism/login (admin foydalanuvchilar ro'yxatidan) */
+  people?: Map<string, PersonInfo>;
+  peopleError?: string | null;
   language?: 'lotin' | 'kirill';
 }
 
@@ -82,10 +84,12 @@ const GROUP_SNIPPETS = [
   { label: 'Oy', expr: 'oy' },
 ];
 
-export default function AdminReportBuilder({ surveys, questionnaire, language = 'lotin' }: Props) {
+export default function AdminReportBuilder({ surveys, questionnaire, people, peopleError, language = 'lotin' }: Props) {
   const [questions, setQuestions] = useState<Question[]>(questionnaire?.questions ?? []);
-  const [patients, setPatients] = useState<Map<string, PatientListItem>>(new Map());
-  const [patientsNote, setPatientsNote] = useState<string | null>(null);
+  const patients = useMemo(() => people ?? new Map<string, PersonInfo>(), [people]);
+  const patientsNote = peopleError
+    ? `Xodimlar ro'yxati (ism, login) olinmadi: ${peopleError}. Ism ustunlari bo'sh bo'ladi.`
+    : null;
   const [def, setDef] = useState<ReportDefinition>(() => ({ ...EMPTY_DEF, columns: EMPTY_DEF.columns.map((c) => ({ ...c })) }));
   const [templates, setTemplates] = useState<ReportDefinition[]>(() => loadTemplates());
   const [varSearch, setVarSearch] = useState('');
@@ -105,19 +109,6 @@ export default function AdminReportBuilder({ surveys, questionnaire, language = 
       .then((q) => setQuestions(q.questions))
       .catch(() => {});
   }, [questionnaire]);
-
-  useEffect(() => {
-    getDoctorPatients()
-      .then((list) => {
-        setPatients(new Map(list.map((p) => [p.id, p])));
-        setPatientsNote(null);
-      })
-      .catch((err) => {
-        setPatientsNote(
-          `Xodimlar ro'yxati (ism, login) olinmadi: ${formatApiError(err)}. Ism ustunlari bo'sh bo'ladi.`
-        );
-      });
-  }, []);
 
   const catalog = useMemo(() => buildVariableCatalog(questions, surveys), [questions, surveys]);
   const knownVars = useMemo(() => new Set(catalog.map((v) => v.name)), [catalog]);

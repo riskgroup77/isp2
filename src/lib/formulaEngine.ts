@@ -103,6 +103,8 @@ type Node =
 
 export class FormulaError extends Error {}
 
+const COMPARISON = new Set(['=', '==', '!=', '<>', '<', '<=', '>', '>=']);
+
 const PREC: Record<string, number> = {
   or: 1, '||': 1, '|': 1,
   and: 2, '&&': 2, '&': 2,
@@ -133,6 +135,7 @@ class Parser {
 
   private expr(minPrec: number): Node {
     let left = this.unary();
+    let lastCmpRight: Node | null = null;
     for (;;) {
       const tok = this.peek();
       let op: string | null = null;
@@ -142,7 +145,13 @@ class Parser {
       this.next();
       const prec = PREC[op];
       const right = op === '^' ? this.expr(prec) : this.expr(prec + 1);
-      left = { k: 'bin', op, a: left, b: right };
+      // Zanjirli taqqoslash: 30 < yosh < 70  →  (30 < yosh) and (yosh < 70)
+      if (COMPARISON.has(op) && lastCmpRight) {
+        left = { k: 'bin', op: 'and', a: left, b: { k: 'bin', op, a: lastCmpRight, b: right } };
+      } else {
+        left = { k: 'bin', op, a: left, b: right };
+      }
+      lastCmpRight = COMPARISON.has(op) ? right : null;
     }
     return left;
   }
