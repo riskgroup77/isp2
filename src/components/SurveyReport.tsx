@@ -108,8 +108,6 @@ export default function SurveyReport({
   const zoneStyle = getRiskZoneStyle(localSurvey.risk_zonasi || report?.zona);
   const hasAiError = !report && (localSurvey.ai_xato || !initialTahlil);
   const tmiValue = report?.tmi ?? person.bmi ?? null;
-  const tmiCategory = (v: number | null | undefined) =>
-    v === null || v === undefined ? '' : v < 18.5 ? 'Vazn yetishmasligi' : v < 25 ? "Me'yor" : v < 30 ? 'Ortiqcha vazn' : 'Semizlik';
   const riskValue = report?.riskFoizi ?? localSurvey.score_total;
 
   const handleReanalyze = async () => {
@@ -163,7 +161,7 @@ export default function SurveyReport({
 
     doc.setFontSize(12);
     doc.text(
-      `Risk: ${r?.riskFoizi ?? localSurvey.score_total}% | Zona: ${localSurvey.risk_zonasi || r?.zona || '-'} | TMI: ${r?.tmi ?? '-'}`,
+      `Risk: ${r?.riskFoizi ?? localSurvey.score_total}% | Zona: ${localSurvey.risk_zonasi || r?.zona || '-'}`,
       14,
       y
     );
@@ -311,7 +309,7 @@ export default function SurveyReport({
           ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div
           className="p-5 rounded-2xl border-2 text-center"
           style={{ borderColor: zoneStyle.color }}
@@ -328,14 +326,6 @@ export default function SurveyReport({
           <p className="text-[10px] uppercase font-bold text-slate-500">Risk balli</p>
           <p className="text-2xl font-black text-indigo-700">
             {report?.riskFoizi ?? localSurvey.score_total}%
-          </p>
-        </div>
-        <div className="p-5 rounded-2xl border border-slate-200 bg-white text-center">
-          <p className="text-[10px] uppercase font-bold text-slate-500">TMI</p>
-          <p className="text-2xl font-black text-slate-800">{tmiValue ?? '—'}</p>
-          <p className="text-xs text-slate-500">
-            {report?.tmiKategoriya ||
-              (tmiValue !== null ? tmiCategory(tmiValue) : person.vazn ? "Bo'y kiritilmagan — TMI hisoblanmadi" : "Vazn va bo'y kiritilmagan")}
           </p>
         </div>
       </div>
