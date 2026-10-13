@@ -10,7 +10,9 @@ import {
 import jsPDF from 'jspdf';
 import { reanalyzeSurvey } from '../lib/api';
 import { formatApiError, getRiskZoneStyle } from '../lib/surveyUtils';
-import type { AIReport, SurveyResponseOut, SurveySubmitResponse } from '../types/api';
+import type { AIReport, ClinicalData, SurveyResponseOut, SurveySubmitResponse } from '../types/api';
+import { buildRows } from '../lib/reportBuilder';
+import { toNum, toStr } from '../lib/formulaEngine';
 import type { UserProfile } from '../types';
 import DiseaseRiskPrognosis from './DiseaseRiskPrognosis';
 import { t } from '../lib/lang';
@@ -25,6 +27,8 @@ interface SurveyReportProps {
   language?: 'lotin' | 'kirill';
   onUpdated?: (result: SurveySubmitResponse) => void;
   onClose?: () => void;
+  /** Anketa yuborilganda kiritilgan klinik ma'lumotlar (serverda saqlanmagan bo'lishi mumkin) */
+  clinical?: ClinicalData | null;
 }
 
 export default function SurveyReport({
@@ -34,6 +38,7 @@ export default function SurveyReport({
   language = 'lotin',
   onUpdated,
   onClose,
+  clinical,
 }: SurveyReportProps) {
   const [reanalyzing, setReanalyzing] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -43,6 +48,35 @@ export default function SurveyReport({
   );
 
   const report = localTahlil;
+
+  // Shu anketaning o'z ma'lumotlari: javoblardan + klinik bosqichdan
+  const person = React.useMemo(() => {
+    const ctx = buildRows([localSurvey], [])[0]?.ctx ?? {};
+    const num = (...vals: unknown[]) => {
+      for (const v of vals) {
+        const n = toNum((v ?? null) as never);
+        if (n !== null && n > 0) return n;
+      }
+      return undefined;
+    };
+    const a = localSurvey.answers as Record<string, unknown>;
+    const pick = (id: string) => (toStr((a[id] ?? null) as never) === 'Boshqa' && a[`${id}a`] ? String(a[`${id}a`]) : toStr((a[id] ?? null) as never));
+    const jins = toStr((ctx.jins ?? null) as never) || (user?.jins === 'ayol' ? 'Ayol' : user?.jins === 'erkak' ? 'Erkak' : '');
+    return {
+      ism: user?.ism || '',
+      yosh: num(ctx.yosh, user?.yosh),
+      jins,
+      sex: pick('9'),
+      kasb: pick('8'),
+      tashkilot: toStr((a['2'] ?? null) as never),
+      sistolik: num(clinical?.sistolik, ctx.sistolik),
+      diastolik: num(clinical?.diastolik, ctx.diastolik),
+      vazn: num(clinical?.vazn, ctx.vazn),
+      boy: num(clinical?.boy, ctx.boy),
+      glyukoza: num(clinical?.glyukoza, ctx.glyukoza),
+      chekish: toStr((a['51'] ?? null) as never).includes('Hozirda chekaman'),
+    };
+  }, [localSurvey, clinical, user]);
   const zoneStyle = getRiskZoneStyle(localSurvey.risk_zonasi || report?.zona);
   const hasAiError = !report && (localSurvey.ai_xato || !initialTahlil);
 
@@ -72,8 +106,24 @@ export default function SurveyReport({
     y += brandLines.length * 5;
     y += 8;
     doc.setFontSize(10);
-    if (user) {
-      doc.text(`Xodim: ${user.ism} | Yosh: ${user.yosh} | Jins: ${user.jins}`, 14, y);
+    const who = [
+      person.ism && `Xodim: ${person.ism}`,
+      person.yosh && `Yosh: ${person.yosh}`,
+      person.jins && `Jins: ${person.jins}`,
+      person.sex && `Sex: ${person.sex}`,
+    ].filter(Boolean);
+    if (who.length) {
+      doc.text(doc.splitTextToSize(who.join(' | '), 180), 14, y);
+      y += 6;
+    }
+    const clin = [
+      person.sistolik && person.diastolik && `Qon bosimi: ${person.sistolik}/${person.diastolik}`,
+      person.vazn && `Vazn: ${person.vazn} kg`,
+      person.boy && `Bo'y: ${person.boy} sm`,
+      person.glyukoza && `Glyukoza: ${person.glyukoza}`,
+    ].filter(Boolean);
+    if (clin.length) {
+      doc.text(clin.join(' | '), 14, y);
       y += 6;
     }
     doc.text(`Sana: ${new Date(localSurvey.created_at).toLocaleDateString('uz-UZ')}`, 14, y);
@@ -171,6 +221,26 @@ export default function SurveyReport({
           </div>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        {[
+          ['Xodim', person.ism],
+          ['Jinsi', person.jins],
+          ['Yoshi', person.yosh ? `${person.yosh} yosh` : ''],
+          ['Sex', person.sex],
+          ['Kasbi', person.kasb],
+          ['Qon bosimi', person.sistolik && person.diastolik ? `${person.sistolik}/${person.diastolik} mmHg` : ''],
+          ["Vazn / bo'y", person.vazn ? `${person.vazn} kg${person.boy ? ` / ${person.boy} sm` : ''}` : ''],
+          ['Chekish', toStr((localSurvey.answers['51'] ?? null) as never)],
+        ]
+          .filter(([, v]) => v)
+          .map(([k, v]) => (
+            <div key={k as string}>
+              <p className="text-[10px] uppercase font-bold text-slate-400">{t(k as string, language)}</p>
+              <p className="font-bold text-slate-800 mt-0.5">{v}</p>
+            </div>
+          ))}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
@@ -282,8 +352,12 @@ export default function SurveyReport({
             riskFoizi: report.riskFoizi,
             tmi: report.tmi ?? undefined,
             answers: localSurvey.answers,
-            chekish: String(localSurvey.answers['44'] ?? '').includes('Hozirda chekaman'),
-            jins: String(localSurvey.answers['5'] ?? ''),
+            sistolik: person.sistolik,
+            diastolik: person.diastolik,
+            glyukoza: person.glyukoza,
+            yosh: person.yosh,
+            chekish: person.chekish,
+            jins: person.jins,
           }}
         />
       )}

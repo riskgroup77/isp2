@@ -85,7 +85,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { id: 'builder', label: 'Hisobot konstruktori', hint: 'Formulalar, filtr, Excel', icon: Wand2 },
       { id: 'analytics', label: 'Qidiruv va tahlil', hint: 'Tez filtrlar', icon: Search },
       { id: 'surveys', label: "So'rovnomalar", hint: 'Har bir anketa', icon: ClipboardList },
-      { id: 'reports', label: 'Hisobotlar N=400', hint: 'Tayyor paket', icon: FolderArchive },
+      { id: 'reports', label: 'Hisobotlar N=400', hint: 'Jonli dissertatsiya jadvallari', icon: FolderArchive },
       { id: 'excel', label: 'Excel AI tahlil', hint: 'Fayl yuklash', icon: FileSpreadsheet },
     ],
   },
@@ -407,7 +407,15 @@ export default function AdminDashboard({
           )}
 
           {tab === 'excel' && <ExcelAnalysisPanel language={language} />}
-          {tab === 'reports' && <AdminReportsPanel language={language} />}
+          {tab === 'reports' && (
+            <AdminReportsPanel
+              language={language}
+              surveys={surveys}
+              questionnaire={questionnaire}
+              loading={loading}
+              onReload={loadAll}
+            />
+          )}
           {tab === 'bulk' && <AdminBulkSurveyPanel questionnaire={questionnaire} onComplete={loadAll} />}
           {tab === 'questions' && <QuestionEditor />}
 
@@ -559,7 +567,7 @@ export default function AdminDashboard({
                       <QuickAction label="Hisobot konstruktori" hint="Istalgan kesimda Excel hisobot" onClick={() => selectTab('builder')} />
                       <QuickAction label="Qidiruv va tahlil" hint="Tayyor filtrlar bilan" onClick={() => selectTab('analytics')} />
                       <QuickAction label="Excel AI tahlil" hint="Fayl yuklab xulosa olish" onClick={() => selectTab('excel')} />
-                      <QuickAction label="Hisobotlar N=400" hint="Dissertatsiya paketi" onClick={() => selectTab('reports')} />
+                      <QuickAction label="Hisobotlar N=400" hint="Jonli dissertatsiya jadvallari" onClick={() => selectTab('reports')} />
                     </div>
                   </div>
                 </div>

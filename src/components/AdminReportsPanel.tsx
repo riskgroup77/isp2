@@ -15,6 +15,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { t } from '../lib/lang';
+import LiveN400Report from './LiveN400Report';
+import type { Questionnaire, SurveyResponseOut } from '../types/api';
 
 const BASE = '/reports/n400';
 
@@ -145,10 +147,21 @@ const STATS = [
 
 interface AdminReportsPanelProps {
   language?: 'lotin' | 'kirill';
+  surveys?: SurveyResponseOut[];
+  questionnaire?: Questionnaire | null;
+  loading?: boolean;
+  onReload?: () => void;
 }
 
-export default function AdminReportsPanel({ language = 'lotin' }: AdminReportsPanelProps) {
+export default function AdminReportsPanel({
+  language = 'lotin',
+  surveys = [],
+  questionnaire = null,
+  loading,
+  onReload,
+}: AdminReportsPanelProps) {
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
 
   const downloadFile = async (file: string, label: string) => {
     setDownloading(file);
@@ -173,6 +186,29 @@ export default function AdminReportsPanel({ language = 'lotin' }: AdminReportsPa
 
   return (
     <div className="space-y-6">
+      <LiveN400Report surveys={surveys} questionnaire={questionnaire} loading={loading} onReload={onReload} />
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setShowArchive((v) => !v)}
+          className="w-full flex flex-wrap items-center justify-between gap-2 p-4 text-left"
+        >
+          <span className="flex items-center gap-2 font-bold text-slate-800">
+            <FolderArchive className="w-4 h-4 text-amber-600" />
+            Arxiv: 2026-09-18 da oldindan tayyorlangan fayllar
+          </span>
+          <span className="text-xs text-slate-500">{showArchive ? 'Yopish' : "Ko'rsatish"}</span>
+        </button>
+        {showArchive && (
+          <p className="px-4 pb-4 text-xs text-amber-800">
+            Bu fayllar serverdagi anketalardan emas, oldindan hisoblangan; ulardagi raqamlar yuqoridagi jonli hisobotdan farq qiladi.
+            Dissertatsiya uchun yuqoridagi jonli hisobotdan foydalaning.
+          </p>
+        )}
+      </div>
+
+      {showArchive && (<>
       {/* Hero banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 p-6 text-white shadow-xl">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggIGQ9Ik0zNiAzNGg2djZoLTZ6TTAgMzRoNnY2SDB6TTAgMGg2djZIMHoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40" />
@@ -316,6 +352,7 @@ export default function AdminReportsPanel({ language = 'lotin' }: AdminReportsPa
           ))}
         </div>
       </div>
+      </>)}
     </div>
   );
 }

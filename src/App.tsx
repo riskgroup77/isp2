@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Heart, 
   Activity, 
@@ -70,9 +70,9 @@ import {
 } from './lib/api';
 import { formatApiError, getRiskZoneStyle } from './lib/surveyUtils';
 import { exportJournalToExcel } from './lib/excelExport';
-import { apiReportToRiskAnalysisResult, questionnaireToPredictRiskPayload } from './lib/riskMapping';
+import { apiReportToRiskAnalysisResult, questionnaireToPredictRiskPayload, surveyToQuestionnaireData } from './lib/riskMapping';
 import { useApiHealth } from './lib/useApiHealth';
-import type { AIReport, SurveyResponseOut, SurveySubmitResponse } from './types/api';
+import type { AIReport, ClinicalData, SurveyResponseOut, SurveySubmitResponse } from './types/api';
 
 // Default initial state
 const defaultQuestionnaire: QuestionnaireData = {
@@ -159,11 +159,15 @@ export default function App() {
   // Authentication — faqat JWT orqali sessiya tiklanadi
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authChecking, setAuthChecking] = useState(hasToken());
+  /** Kundalik, eslatmalar va tarix har bir foydalanuvchi uchun alohida saqlanadi */
+  const storageOwner = useRef<string | null>(null);
+  const userKey = (base: string) => `${base}:${currentUser?.id ?? 'anon'}`;
 
   const [patientAdvices, setPatientAdvices] = useState<PatientAdvice[]>([]);
   const [apiSurveys, setApiSurveys] = useState<SurveyResponseOut[]>([]);
   const [selectedSurveyResult, setSelectedSurveyResult] = useState<SurveyResponseOut | null>(null);
   const [lastSubmitResult, setLastSubmitResult] = useState<SurveySubmitResponse | null>(null);
+  const [lastSubmittedClinical, setLastSubmittedClinical] = useState<ClinicalData | null>(null);
   const [historyViewId, setHistoryViewId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -184,10 +188,7 @@ export default function App() {
     uyqu: 'yaxshi' as 'yaxshi' | 'ortacha' | 'yomon',
     stress: 'past' as 'past' | 'ortacha' | 'yuqori',
     alomatlar: [] as string[],
-    dorilar: [
-      { nomi: 'Lisinopril', doza: '10 mg', ichildi: false },
-      { nomi: 'Amlodipin', doza: '5 mg', ichildi: false }
-    ] as { nomi: string; doza: string; ichildi: boolean }[],
+    dorilar: [] as { nomi: string; doza: string; ichildi: boolean }[],
     qaydlar: '',
     yurilganMetr: '' as number | '',
     ichilganSuvMl: '' as number | '',
@@ -198,19 +199,7 @@ export default function App() {
   const [newMedDoza, setNewMedDoza] = useState('');
 
   // Medication alarms for reminders (stored in localStorage)
-  const [medAlarms, setMedAlarms] = useState<MedicationAlarm[]>(() => {
-    try {
-      const stored = localStorage.getItem('soglik_dori_reminders');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error("Failed to parse med alarms:", e);
-    }
-    return [
-      { id: 'al-1', nomi: 'Lozap H', doza: '50 mg', vaqt: '08:00', faol: true, ichildiBugun: false, oxirgiIchilganSana: '' },
-      { id: 'al-2', nomi: 'Cardiomagnyl', doza: '75 mg', vaqt: '14:00', faol: true, ichildiBugun: false, oxirgiIchilganSana: '' },
-      { id: 'al-3', nomi: 'Bisoprolol', doza: '5 mg', vaqt: '20:00', faol: true, ichildiBugun: false, oxirgiIchilganSana: '' }
-    ];
-  });
+  const [medAlarms, setMedAlarms] = useState<MedicationAlarm[]>([]);
 
   const [activeNotification, setActiveNotification] = useState<MedicationAlarm | null>(null);
   const [editingAlarm, setEditingAlarm] = useState<MedicationAlarm | null>(null);
@@ -249,9 +238,10 @@ export default function App() {
   // to prevent double trigger within the same minute.
   const [triggeredAlarmsThisMin, setTriggeredAlarmsThisMin] = useState<{ [key: string]: string }>({});
 
-  // Sync alarms back to localStorage
+  // Eslatmalarni joriy foydalanuvchi kaliti ostida saqlash
   useEffect(() => {
-    localStorage.setItem('soglik_dori_reminders', JSON.stringify(medAlarms));
+    if (!currentUser || storageOwner.current !== currentUser.id) return;
+    localStorage.setItem(userKey('soglik_dori_reminders'), JSON.stringify(medAlarms));
   }, [medAlarms]);
 
   // Real-time interval checker for medication times
@@ -293,58 +283,11 @@ export default function App() {
     return () => clearInterval(interval);
   }, [medAlarms, triggeredAlarmsThisMin, currentUser]);
 
-  // Load journal entries from localStorage
+  // Kundalikni joriy foydalanuvchi kaliti ostida saqlash (eslatmadan avtomatik yozilganlar ham)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('soglik_kundaligi');
-      if (stored) {
-        setJournalEntries(JSON.parse(stored));
-      } else {
-        const initialSamples: HealthJournalEntry[] = [
-          {
-            id: 'sample-1',
-            sana: '2026-06-09',
-            vaqt: '08:30',
-            sistolik: 135,
-            diastolik: 87,
-            puls: 78,
-            glyukoza: 5.6,
-            vazn: 74,
-            uyqu: 'ortacha',
-            stress: 'ortacha',
-            alomatlar: ['holsizlik'],
-            dorilar: [
-              { nomi: 'Lisinopril', doza: '10 mg', ichildi: true },
-              { nomi: 'Amlodipin', doza: '5 mg', ichildi: false }
-            ],
-            qaydlar: 'Ertalab biroz bosh aylanishi his qilindi. Oliy ma\'lumotli pedagog xodim bo\'lganligim sababli dori ichish tartibiga rioya qilishim kerak.'
-          },
-          {
-            id: 'sample-2',
-            sana: '2026-06-10',
-            vaqt: '10:15',
-            sistolik: 124,
-            diastolik: 80,
-            puls: 72,
-            glyukoza: 5.2,
-            vazn: 73.8,
-            uyqu: 'yaxshi',
-            stress: 'past',
-            alomatlar: [],
-            dorilar: [
-              { nomi: 'Lisinopril', doza: '10 mg', ichildi: true },
-              { nomi: 'Amlodipin', doza: '5 mg', ichildi: true }
-            ],
-            qaydlar: 'Bugun o\'zimni juda yaxshi his qilyapman. Milliy taomlardagi tuz va paxta yog\'ini chekladim. Kunlik 8000 qadam piyoda yurish bajarildi!'
-          }
-        ];
-        setJournalEntries(initialSamples);
-        localStorage.setItem('soglik_kundaligi', JSON.stringify(initialSamples));
-      }
-    } catch (e) {
-      console.error("Failed to load journal entries:", e);
-    }
-  }, []);
+    if (!currentUser || storageOwner.current !== currentUser.id) return;
+    localStorage.setItem(userKey('soglik_kundaligi'), JSON.stringify(journalEntries));
+  }, [journalEntries]);
 
   // Form mode: standardized vs AI Complaint vs Corporate
   const [intakeMode, setIntakeMode] = useState<'standard' | 'complaint' | 'corporate'>('corporate');
@@ -439,8 +382,11 @@ export default function App() {
       /* ignore */
     }
     localStorage.removeItem('soglik_portal_user');
-    localStorage.removeItem('soglik_skrining_tarixi');
-    localStorage.removeItem('soglik_kundaligi');
+    // Eski (foydalanuvchiga bog'lanmagan) kalitlar — boshqa xodimga ko'rinmasin
+    ['soglik_skrining_tarixi', 'soglik_kundaligi', 'soglik_dori_reminders', 'corporate_surveys'].forEach((k) =>
+      localStorage.removeItem(k)
+    );
+    resetPersonalState();
     setCurrentUser(null);
     setHistoryList([]);
     setJournalEntries([]);
@@ -458,29 +404,6 @@ export default function App() {
         fetchPatientAdvices(currentUser.id);
         loadApiSurveys();
         
-        // Hydrate from back-end if local storage is blank
-        const localHist = localStorage.getItem('soglik_skrining_tarixi');
-        const localJour = localStorage.getItem('soglik_kundaligi');
-        const localCorp = localStorage.getItem('corporate_surveys');
-
-        if ((!localHist || JSON.parse(localHist).length === 0) && currentUser.soglik_skrining_tarixi && currentUser.soglik_skrining_tarixi.length > 0) {
-          const normalized = currentUser.soglik_skrining_tarixi.map((item: any, idx: number) => ({
-            id: item.id || `hist-${idx}-${Math.random().toString(36).substr(2, 5)}`,
-            date: item.date || item.sana || new Date().toLocaleString('uz-UZ', { hour12: false }),
-            data: item.data,
-            result: item.result || item.riskResult
-          }));
-          setHistoryList(normalized);
-          localStorage.setItem('soglik_skrining_tarixi', JSON.stringify(normalized));
-        }
-        if ((!localJour || JSON.parse(localJour).length === 0) && currentUser.soglik_kundaligi && currentUser.soglik_kundaligi.length > 0) {
-          setJournalEntries(currentUser.soglik_kundaligi);
-          localStorage.setItem('soglik_kundaligi', JSON.stringify(currentUser.soglik_kundaligi));
-        }
-        if ((!localCorp || JSON.parse(localCorp).length === 0) && currentUser.corporate_surveys && currentUser.corporate_surveys.length > 0) {
-          setCorporateSurveys(currentUser.corporate_surveys);
-          localStorage.setItem('corporate_surveys', JSON.stringify(currentUser.corporate_surveys));
-        }
       }
     } else {
       localStorage.removeItem('soglik_portal_user');
@@ -562,43 +485,65 @@ export default function App() {
     }
   };
 
-  // Load history from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('soglik_skrining_tarixi');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const normalized = parsed.map((item: any, idx: number) => ({
-            id: item.id || `hist-${idx}-${Math.random().toString(36).substr(2, 5)}`,
-            date: item.date || item.sana || new Date().toLocaleString('uz-UZ', { hour12: false }),
-            data: item.data,
-            result: item.result || item.riskResult
-          }));
-          setHistoryList(normalized);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load history:", e);
-    }
-  }, []);
+  /** Foydalanuvchiga tegishli barcha ekran holatini boshlang'ich holatga qaytaradi */
+  const resetPersonalState = () => {
+    storageOwner.current = null;
+    setRiskResult(null);
+    setFormData({ ...defaultQuestionnaire });
+    setAiTextResult(null);
+    setComplaintText('');
+    setChatMessages([]);
+    setChatInput('');
+    setErrorMsg(null);
+    setSimulatedWeight(null);
+    setSimulatedSalt(null);
+    setSimulatedActivity(null);
+    setSimulatedTobacco(null);
+    setSimulatedNosvoy(null);
+    setSimulatedResult(null);
+    setLastSubmitResult(null);
+    setLastSubmittedClinical(null);
+    setSelectedSurveyResult(null);
+    setApiSurveys([]);
+    setHistoryViewId(null);
+    setHistoryList([]);
+    setJournalEntries([]);
+    setCorporateSurveys([]);
+    setMedAlarms([]);
+    setActiveNotification(null);
+    setIntakeMode('corporate');
+    setActiveTab('screening');
+  };
 
-  // Load corporate surveys from localStorage
+  // Foydalanuvchi almashganda: ekranni tozalash va uning shaxsiy ma'lumotlarini yuklash
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('corporate_surveys');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setCorporateSurveys(parsed);
-        }
+    resetPersonalState();
+    if (!currentUser) return;
+    const read = <T,>(base: string, fallback: T): T => {
+      try {
+        const raw = localStorage.getItem(`${base}:${currentUser.id}`);
+        const parsed = raw ? JSON.parse(raw) : fallback;
+        return Array.isArray(fallback) && !Array.isArray(parsed) ? fallback : parsed;
+      } catch {
+        return fallback;
       }
-    } catch (e) {
-      console.error("Failed to load corporate surveys:", e);
-    }
-  }, []);
+    };
+    setJournalEntries(read<HealthJournalEntry[]>('soglik_kundaligi', []));
+    setMedAlarms(read<MedicationAlarm[]>('soglik_dori_reminders', []));
+    setHistoryList(read('soglik_skrining_tarixi', []));
+    setCorporateSurveys(read<CorporateSurvey[]>('corporate_surveys', []));
+    storageOwner.current = currentUser.id;
+  }, [currentUser?.id]);
 
-  const handleSurveyComplete = (result: SurveySubmitResponse) => {
+  const handleSurveyComplete = (
+    result: SurveySubmitResponse,
+    submitted?: { answers: Record<string, unknown>; clinical: ClinicalData }
+  ) => {
+    // Natija sahifasi aynan shu xodim kiritgan ma'lumotlarni ko'rsatsin
+    if (submitted) {
+      setFormData(surveyToQuestionnaireData(submitted.answers, submitted.clinical, currentUser));
+      setLastSubmittedClinical(submitted.clinical);
+    }
     setLastSubmitResult(result);
     setSelectedSurveyResult(result.response);
     setApiSurveys((prev) => [result.response, ...prev.filter((s) => s.id !== result.response.id)]);
@@ -623,7 +568,7 @@ export default function App() {
     };
     const updated = [newItem, ...historyList].slice(0, 30); // limit to 30 items
     setHistoryList(updated);
-    localStorage.setItem('soglik_skrining_tarixi', JSON.stringify(updated));
+    localStorage.setItem(userKey('soglik_skrining_tarixi'), JSON.stringify(updated));
     if (currentUser) {
       syncDataWithServer(currentUser);
     }
@@ -633,7 +578,7 @@ export default function App() {
     e.stopPropagation();
     const updated = historyList.filter(item => item.id !== id);
     setHistoryList(updated);
-    localStorage.setItem('soglik_skrining_tarixi', JSON.stringify(updated));
+    localStorage.setItem(userKey('soglik_skrining_tarixi'), JSON.stringify(updated));
     if (currentUser) {
       syncDataWithServer(currentUser);
     }
@@ -663,7 +608,7 @@ export default function App() {
 
     const updated = [newEntry, ...journalEntries];
     setJournalEntries(updated);
-    localStorage.setItem('soglik_kundaligi', JSON.stringify(updated));
+    localStorage.setItem(userKey('soglik_kundaligi'), JSON.stringify(updated));
     if (currentUser) {
       syncDataWithServer(currentUser);
     }
@@ -687,7 +632,7 @@ export default function App() {
   const handleDeleteJournalEntry = (id: string) => {
     const updated = journalEntries.filter(e => e.id !== id);
     setJournalEntries(updated);
-    localStorage.setItem('soglik_kundaligi', JSON.stringify(updated));
+    localStorage.setItem(userKey('soglik_kundaligi'), JSON.stringify(updated));
     if (currentUser) {
       syncDataWithServer(currentUser);
     }
@@ -1678,6 +1623,7 @@ export default function App() {
                           survey={lastSubmitResult.response}
                           tahlil={lastSubmitResult.tahlil}
                           user={currentUser}
+                          clinical={lastSubmittedClinical}
                           language={language}
                           onUpdated={(r) => {
                             setLastSubmitResult(r);
@@ -2437,6 +2383,24 @@ export default function App() {
                         <h3 className="text-base font-black text-slate-800 tracking-tight mt-0.5">{t("Anketa Xulosasi", language)}</h3>
                       </div>
                       <div className="p-5 space-y-3 text-xs">
+                        {formData.ism && (
+                          <div className="flex justify-between items-center gap-3 py-1.5 border-b border-slate-100">
+                            <span className="text-slate-500 font-semibold shrink-0">{t("Xodim", language)}:</span>
+                            <span className="font-extrabold text-slate-800 text-right">{formData.ism}</span>
+                          </div>
+                        )}
+                        {formData.sex && (
+                          <div className="flex justify-between items-center gap-3 py-1.5 border-b border-slate-100">
+                            <span className="text-slate-500 font-semibold shrink-0">{t("Sex", language)}:</span>
+                            <span className="font-extrabold text-slate-800 text-right">{formData.sex}</span>
+                          </div>
+                        )}
+                        {formData.kasb && (
+                          <div className="flex justify-between items-center gap-3 py-1.5 border-b border-slate-100">
+                            <span className="text-slate-500 font-semibold shrink-0">{t("Kasbi", language)}:</span>
+                            <span className="font-extrabold text-slate-800 text-right">{formData.kasb}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
                           <span className="text-slate-500 font-semibold">{t("Jinsi", language)}:</span>
                           <span className="font-extrabold text-slate-800">{formData.jins === 'erkak' ? t("Erkak", language) : t("Ayol", language)}</span>
@@ -2483,10 +2447,14 @@ export default function App() {
                             {formData.chekish === 'ha' ? t("Faol chekuvchi", language) : t("Chekmaydi", language)} / {formData.nosvoy === 'ha' ? t("Nosvoy otadi", language) : t("Nosvoy otmaydi", language)}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-slate-500 font-semibold">{t("Hududingiz", language)}:</span>
-                          <span className="font-extrabold text-slate-800">{formData.shaharTuman}</span>
-                        </div>
+                        {(formData.tashkilot || formData.shaharTuman) && (
+                          <div className="flex justify-between items-center gap-3 py-1.5">
+                            <span className="text-slate-500 font-semibold shrink-0">
+                              {formData.tashkilot ? t("Tashkilot", language) : t("Hududingiz", language)}:
+                            </span>
+                            <span className="font-extrabold text-slate-800 text-right">{formData.tashkilot || formData.shaharTuman}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3869,7 +3837,7 @@ export default function App() {
                         onClick={() => {
                           if (confirm("Haqiqatdan ham barcha kundalik qaydlarini o'chirib yubormoqchimisiz?")) {
                             setJournalEntries([]);
-                            localStorage.removeItem('soglik_kundaligi');
+                            localStorage.removeItem(userKey('soglik_kundaligi'));
                           }
                         }}
                         className="text-[11px] text-red-600 hover:bg-red-50 border border-red-250 px-3 py-1.5 rounded-lg transition cursor-pointer"

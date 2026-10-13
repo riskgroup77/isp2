@@ -19,6 +19,11 @@ export interface QuestionnaireData {
   realKomplayens: 'yaxshi' | 'ortacha' | 'past';
   shaharTuman: string; // Fergana Valley regions: Farg'ona shahri, Marg'ilon, Qo'qon, Quva, Rishton, Oltiariq, etc.
   erkinShikoyat?: string; // AI erkin shikoyat qismi
+  /** Korporativ anketadan kelganda: F.I.SH., tashkilot, sex va kasb */
+  ism?: string;
+  tashkilot?: string;
+  sex?: string;
+  kasb?: string;
 }
 
 export interface FactorImportance {

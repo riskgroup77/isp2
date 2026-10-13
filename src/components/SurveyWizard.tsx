@@ -25,7 +25,10 @@ import { t } from '../lib/lang';
 interface SurveyWizardProps {
   currentUser: UserProfile;
   language?: 'lotin' | 'kirill';
-  onComplete: (result: SurveySubmitResponse) => void;
+  onComplete: (
+    result: SurveySubmitResponse,
+    submitted: { answers: Record<string, unknown>; clinical: ClinicalData }
+  ) => void;
 }
 
 const CLINICAL_STEP = '__klinik__';
@@ -53,6 +56,7 @@ export default function SurveyWizard({
     vazn: currentUser.vazn || defaultClinical.vazn,
     boy: currentUser.boy || defaultClinical.boy,
   });
+  const [prefillNote, setPrefillNote] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitProgress, setSubmitProgress] = useState('');
@@ -133,7 +137,37 @@ export default function SurveyWizard({
       return;
     }
     setErrorMsg(null);
-    if (stepIndex < steps.length - 1) setStepIndex((i) => i + 1);
+    if (stepIndex < steps.length - 1) {
+      if (steps[stepIndex + 1] === CLINICAL_STEP) prefillClinicalFromAnswers();
+      setStepIndex((i) => i + 1);
+    }
+  };
+
+  /** Anketadagi vazn (4-savol) va qon bosimi (40-savol) javoblarini klinik bosqichga ko'chiradi */
+  const prefillClinicalFromAnswers = () => {
+    const patch: Partial<ClinicalData> = {};
+    const used: string[] = [];
+    const w = Number(String(answers['4'] ?? '').replace(',', '.'));
+    if (Number.isFinite(w) && w > 20 && w < 300) {
+      patch.vazn = w;
+      used.push('vazn (4-savol)');
+    }
+    const bp = String(answers['40'] ?? '').match(/(\d{2,3})\s*[/\-]\s*(\d{2,3})/);
+    if (bp) {
+      const sys = parseInt(bp[1], 10);
+      const dia = parseInt(bp[2], 10);
+      if (sys >= 70 && sys <= 250 && dia >= 40 && dia <= 150) {
+        patch.sistolik = sys;
+        patch.diastolik = dia;
+        used.push('qon bosimi (40-savol)');
+      }
+    }
+    if (used.length) {
+      setClinical((c) => ({ ...c, ...patch }));
+      setPrefillNote(`Anketadagi javoblaringizdan olindi: ${used.join(', ')}. Iltimos, tekshirib chiqing.`);
+    } else {
+      setPrefillNote(null);
+    }
   };
 
   const handleBack = () => {
@@ -166,7 +200,7 @@ export default function SurveyWizard({
 
     try {
       const result = await submitSurvey(finalAnswers, clinical, false);
-      onComplete(result);
+      onComplete(result, { answers: finalAnswers, clinical });
     } catch (err) {
       setErrorMsg(formatApiError(err));
     } finally {
@@ -327,6 +361,11 @@ export default function SurveyWizard({
         )}
 
         {isClinicalStep ? (
+          <div className="space-y-4">
+          <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
+            {prefillNote ||
+              "Qon bosimi, vazn va bo'yingizni o'zingizniki bilan almashtiring — natija shu qiymatlarga qarab hisoblanadi."}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-600 uppercase">Sistolik (mmHg)</label>
@@ -398,6 +437,7 @@ export default function SurveyWizard({
                 className="w-full mt-1 p-3 rounded-xl border border-slate-200"
               />
             </div>
+          </div>
           </div>
         ) : (
           visibleQuestions.map((q) => {

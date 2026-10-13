@@ -1,5 +1,6 @@
 import type { QuestionnaireData, RiskAnalysisResult, UserProfile } from '../types';
-import type { AIReport } from '../types/api';
+import type { AIReport, ClinicalData } from '../types/api';
+import { ageFromDate } from './formulaEngine';
 import { APP_NAME } from './branding';
 
 export function questionnaireToPredictRiskPayload(
@@ -72,5 +73,95 @@ export function apiReportToRiskAnalysisResult(
       },
     },
     klinikXulosa: report.klinikXulosa || report.natijalar || '',
+  };
+}
+
+function ans(answers: Record<string, unknown>, id: string): string {
+  const v = answers[id];
+  if (Array.isArray(v)) return v.map(String).join(', ');
+  return v === null || v === undefined ? '' : String(v);
+}
+
+function low(s: string): string {
+  return s.toLowerCase().replace(/[’`‘ʻ]/g, "'");
+}
+
+/**
+ * Korporativ anketa javoblari + klinik bosqichdan natija sahifasi uchun
+ * QuestionnaireData quradi — sahifada aynan shu xodimning ma'lumotlari ko'rinadi.
+ */
+export function surveyToQuestionnaireData(
+  answers: Record<string, unknown>,
+  clinical: ClinicalData | null | undefined,
+  user?: UserProfile | null
+): QuestionnaireData {
+  const gender = low(ans(answers, '5'));
+  const jins: QuestionnaireData['jins'] =
+    gender === 'ayol' ? 'ayol' : gender === 'erkak' ? 'erkak' : user?.jins === 'ayol' ? 'ayol' : 'erkak';
+  const yosh = ageFromDate(ans(answers, '3') || null) ?? user?.yosh ?? 0;
+
+  const smoke = low(ans(answers, '51'));
+  const chekish: QuestionnaireData['chekish'] = smoke.includes('hozirda')
+    ? 'ha'
+    : smoke.includes('ilgari')
+      ? 'chekar_edi'
+      : 'yoq';
+
+  const salt = low(ans(answers, '69'));
+  const tuzIstemi: QuestionnaireData['tuzIstemi'] = salt.includes("tatib ko'rmayman")
+    ? 'yuqori'
+    : salt.startsWith('ha')
+      ? 'ortacha'
+      : salt
+        ? 'past'
+        : 'ortacha';
+
+  const sport = low(ans(answers, '52'));
+  const jismoniyFaollik: QuestionnaireData['jismoniyFaollik'] = sport.startsWith('ha')
+    ? 'ortacha'
+    : sport
+      ? 'kam'
+      : 'ortacha';
+
+  const fruit = low(ans(answers, '67'));
+  const sabzavotMeva: QuestionnaireData['sabzavotMeva'] = fruit.includes('muntazam') || !fruit ? 'har_kuni' : 'kam_yoki_yoq';
+
+  const bread = low(ans(answers, '68'));
+  const shakarVaXamir: QuestionnaireData['shakarVaXamir'] = bread.includes('oq non') ? 'kop' : bread.includes('kepak') ? 'kam' : 'ortacha';
+
+  const num = (v: unknown): number | null => {
+    const n = Number(String(v ?? '').replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const bp = ans(answers, '40').match(/(\d{2,3})\s*[/-]\s*(\d{2,3})/);
+
+  const sex = ans(answers, '9') === 'Boshqa' && ans(answers, '9a') ? ans(answers, '9a') : ans(answers, '9');
+  const kasb = ans(answers, '8') === 'Boshqa' && ans(answers, '8a') ? ans(answers, '8a') : ans(answers, '8');
+
+  return {
+    yosh,
+    jins,
+    boy: num(clinical?.boy) ?? user?.boy ?? 0,
+    vazn: num(clinical?.vazn) ?? num(answers['4']) ?? user?.vazn ?? 0,
+    sistolik: num(clinical?.sistolik) ?? (bp ? parseInt(bp[1], 10) : 0),
+    diastolik: num(clinical?.diastolik) ?? (bp ? parseInt(bp[2], 10) : 0),
+    glyukoza: num(clinical?.glyukoza) ?? '',
+    xolesterin: num(clinical?.xolesterin) ?? '',
+    tuzIstemi,
+    shakarVaXamir,
+    sabzavotMeva,
+    jismoniyFaollik,
+    chekish,
+    nosvoy: 'yoq',
+    oiladaKasallik: [],
+    tibbiyotXodimi: false,
+    nazariyBilimDarajasi: 'yaxshi',
+    realKomplayens: 'ortacha',
+    shaharTuman: '',
+    erkinShikoyat: '',
+    ism: user?.ism,
+    tashkilot: ans(answers, '2') || undefined,
+    sex: sex || undefined,
+    kasb: kasb || undefined,
   };
 }

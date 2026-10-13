@@ -86,7 +86,7 @@ export function computeDiseasePrognoses(input: PrognosisInput): DiseasePrognosis
   const gly = input.glyukoza ?? 5.0;
   const smokes =
     input.chekish ??
-    String(input.answers?.['44'] ?? '').includes('Hozirda chekaman');
+    String(input.answers?.['51'] ?? '').includes('Hozirda chekaman');
   const age = input.yosh ?? 40;
 
   return DISEASE_TYPES.map((kasallik) => {

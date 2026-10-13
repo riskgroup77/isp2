@@ -371,6 +371,19 @@ export default function DoctorDashboard({
                   key={selectedSurvey.id}
                   survey={selectedSurvey}
                   tahlil={selectedSurvey.ai_response}
+                  user={
+                    activePatient
+                      ? {
+                          id: activePatient.id,
+                          login: activePatient.login,
+                          ism: activePatient.ism,
+                          rol: 'xodim',
+                          jins: activePatient.jins,
+                          yosh: activePatient.yosh,
+                          yaratilganSana: '',
+                        }
+                      : null
+                  }
                   language={language}
                   onUpdated={(result) => {
                     setAllSurveys((prev) =>
