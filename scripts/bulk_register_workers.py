@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import sys
 import time
 import unicodedata
@@ -95,10 +96,15 @@ def make_login(first: str, family: str, year: int, row_no: int, used: set[str]) 
     return candidate
 
 
+PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+
+
 def make_password(family: str, year: int) -> str:
-    fam = slug(family) or "worker"
-    prefix = fam[:1].upper() + fam[1:4]
-    return f"{prefix}{year}!"
+    # Tasodifiy parol: familiya va yildan tuzilgan parolni boshqalar taxmin qila olardi.
+    while True:
+        pw = "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(10))
+        if re.search(r"[A-Z]", pw) and re.search(r"[a-z]", pw) and re.search(r"\d", pw):
+            return pw
 
 
 def register_user(payload: dict) -> dict:

@@ -176,7 +176,7 @@ def build_methodology_doc(out_path: Path) -> None:
     t3.rows[0].cells[1].text = "Format"
     t3.rows[0].cells[2].text = "Mazmuni"
     for r in [
-        ("Dissertatsiya_Tahlil_N400_2026-08-21.xlsx", "Excel .xlsx", "6 varaq: izohlar, jadvallar, 400 ro'yxat"),
+        ("Dissertatsiya_Tahlil_N400_2026-08-21.xlsx", "Excel .xlsx", "izohlar va jadvallar (F.I.Sh. ro'yxatisiz)"),
         ("Dissertatsiya_Tahlil_N400_2026-08-21.docx", "Word .docx", "Dissertatsiya bob'i matni + jadvallar + diagrammalar"),
         ("diagrammalar/*.png (5 ta)", "PNG", "Alohida diagramma fayllari"),
         ("Dissertatsiya_Usullar_va_Dasturlar.docx", "Word .docx", "Ushbu uslubiy ma'lumotnoma"),

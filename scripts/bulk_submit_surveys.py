@@ -378,133 +378,13 @@ def check_health(timeout: float = 30.0) -> tuple[bool, str]:
         return False, str(exc)
 
 
-def submit_survey(token: str, answers: dict, klinik: dict, skip_ai: bool = True) -> dict:
-    return http_json(
-        "POST",
-        "/api/surveys/submit",
-        {"answers": answers, "klinik": klinik, "skip_ai": skip_ai},
-        token=token,
-    )
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bulk survey submit")
-    parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--row", type=int, default=0)
-    parser.add_argument("--excel", type=Path, default=None)
-    args = parser.parse_args()
-
-    if not WORKERS_CSV.exists():
-        print(f"Workers CSV topilmadi: {WORKERS_CSV}", file=sys.stderr)
-        return 1
-
-    workers = pd.read_csv(WORKERS_CSV)
-    excel_path = resolve_excel_path(args.excel)
-    excel = pd.read_excel(excel_path) if excel_path.exists() else None
-
-    ok, health_detail = check_health()
-    if not ok:
-        print(f"API health check failed: {health_detail}", file=sys.stderr)
-        return 1
-    print(f"API health OK: {health_detail[:120]}")
-
-    print("Savollar yuklanmoqda...")
-    questionnaire = fetch_questions()
-    print(f"Anketa: {questionnaire.get('title')} — {questionnaire.get('totalQuestions')} savol")
-
-    log: dict = {"success": [], "failed": [], "skipped": []}
-    indices = list(workers.index)
-    if args.row:
-        indices = [args.row - 1]
-    elif args.limit:
-        indices = indices[: args.limit]
-
-    total = len(indices)
-    print(f"Yuboriladigan xodimlar: {total}")
-
-    for n, idx in enumerate(indices, start=1):
-        row = workers.iloc[idx]
-        row_no = int(idx) + 1
-        login = str(row["login"]).strip()
-        password = str(row["password"]).strip()
-        ism = str(row["ism"]).strip()
-
-        excel_row = excel.iloc[idx] if excel is not None and idx < len(excel) else None
-        full_name = str(excel_row.iloc[1]) if excel_row is not None else ism
-        birth = excel_row.iloc[2] if excel_row is not None else None
-        job_start = excel_row.iloc[3] if excel_row is not None else None
-        job = str(excel_row.iloc[4]) if excel_row is not None else "Xodim"
-
-        age = calc_age(birth)
-        gender = detect_gender(full_name)
-        staj = calc_staj_years(job_start)
-        kasb = job.split()[0] if job else "Xodim"
-        sex_opts = next((q.get("options") or [] for q in questionnaire["questions"] if str(q["id"]) == "9"), [])
-        sex = map_sex_option(job, sex_opts)
-
-        rng = random.Random(f"{login}-{row_no}")
-        profile = {
-            "ism": ism,
-            "age": age,
-            "gender": gender,
-            "job": job,
-            "kasb": kasb,
-            "sex": sex,
-            "staj": staj,
-            "birth": str(pd.to_datetime(birth).date()) if birth is not None and not pd.isna(birth) else "1985-01-01",
-        }
-
-        try:
-            token = login_user(login, password)
-            dp = generate_disease_profile(rng, age, job)
-            klinik = generate_clinical(rng, age, gender, dp)
-            raw_answers = generate_answers(questionnaire, profile, rng)
-            api_answers = answers_for_api(questionnaire, raw_answers)
-            validation_err = validate_answers(questionnaire, api_answers)
-            if validation_err:
-                raise ValueError(validation_err)
-            result = submit_survey(token, api_answers, klinik, skip_ai=True)
-            entry = {
-                "row": row_no,
-                "login": login,
-                "ism": ism,
-                "survey_id": result.get("response", {}).get("id"),
-                "status": "ok",
-            }
-            log["success"].append(entry)
-            if n % 25 == 0 or n == total:
-                print(f"[{n}/{total}] OK: {login} — {ism}")
-        except urllib.error.URLError as err:
-            detail = str(err)
-            log["failed"].append({"row": row_no, "login": login, "detail": detail, "connectivity": True})
-            print(f"[{n}/{total}] ALOQA XATOSI: {login} — {detail[:120]}")
-            print("API bilan aloqa uzildi — bulk yuborish to'xtatildi.")
-            break
-        except urllib.error.HTTPError as err:
-            body = err.read().decode("utf-8", errors="replace")
-            low = body.lower()
-            if err.code in (409, 400) and ("allaqachon" in low or "already" in low or "mavjud" in low):
-                log["skipped"].append({"row": row_no, "login": login, "reason": body[:200]})
-                print(f"[{n}/{total}] SKIP: {login}")
-            else:
-                log["failed"].append({"row": row_no, "login": login, "http": err.code, "detail": body[:500]})
-                print(f"[{n}/{total}] XATO {err.code}: {login} — {body[:120]}")
-        except Exception as exc:
-            log["failed"].append({"row": row_no, "login": login, "detail": str(exc)})
-            print(f"[{n}/{total}] XATO: {login} — {exc}")
-
-        time.sleep(0.15)
-
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    print("\n=== YAKUN ===")
-    print(f"Muvaffaqiyatli: {len(log['success'])}")
-    print(f"O'tkazilgan: {len(log['skipped'])}")
-    print(f"Xato: {len(log['failed'])}")
-    print(f"Log: {LOG_PATH}")
-    return 0 if not log["failed"] else 2
+    # Ommaviy yuborish o'chirilgan: bu skript haqiqiy xodimlar nomidan sun'iy
+    # javoblar yaratardi va ular jonli hisobotlarga aralashib ketardi.
+    # Qolgan yordamchi funksiyalar boshqa skriptlar uchun saqlangan.
+    print("Ommaviy anketa yuborish o'chirilgan. Anketani har bir xodim o'zi to'ldiradi.")
+    return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

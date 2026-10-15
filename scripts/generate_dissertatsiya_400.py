@@ -355,17 +355,7 @@ def write_excel(records: list[dict], anketa_rows: list, icd_rows: list, demo: di
         ws4.append([sex, len(items), pct(len(items), n), m["hodisalar"], m["kunlar"]])
     style_header(ws4)
 
-    # 400 ro'yxat
-    ws5 = wb.create_sheet("400 xodim ro'yxati")
-    ws5.append(["№", "F.I.SH.", "Sex", "Kasb", "Jins", "Yosh", "Guruh", "Asosiy kasallik", "ICD sinflari"])
-    for i, r in enumerate(records, 1):
-        ws5.append([
-            i, r["ism"], r["sex"], r["kasb"], r["jins"], r["yosh"], r["guruh"],
-            r.get("anketa_primary", "")[:50],
-            ", ".join(r.get("icd_codes", [])),
-        ])
-    style_header(ws5)
-
+    # Xodimlarning F.I.Sh. ro'yxati ataylab yozilmaydi: fayl ommaviy papkaga tushadi.
     wb.save(out_path)
 
 

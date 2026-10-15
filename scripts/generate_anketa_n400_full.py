@@ -417,11 +417,7 @@ def write_excel(tables: dict, izohlar: dict, risk: dict, records: list[dict], ou
             ws.append([q, v, c, pct(c, n), fmt_ci(c, n)])
         style_header(ws)
 
-    ws_l = wb.create_sheet("400 ro'yxat")
-    ws_l.append(["№", "F.I.SH.", "Sex", "Kasb", "Jins", "Yosh", "Xavf %", "Zona", "Guruh"])
-    for i, r in enumerate(records, 1):
-        ws_l.append([i, r["ism"], r["sex"], r["kasb"], r["jins"], r["yosh"], r["risk_pct"], r["zona"], r["guruh"]])
-    style_header(ws_l)
+    # Xodimlarning F.I.Sh. ro'yxati ataylab yozilmaydi: fayl ommaviy papkaga tushadi.
     wb.save(out_path)
 
 

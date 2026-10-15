@@ -12,7 +12,6 @@ import {
   LogOut,
   Menu,
   Pencil,
-  Play,
   RefreshCw,
   ScrollText,
   Search,
@@ -42,7 +41,6 @@ import SurveyReport from './SurveyReport';
 import SurveyAnalyticsPanel from './SurveyAnalyticsPanel';
 import QuestionEditor from './QuestionEditor';
 import ExcelAnalysisPanel from './ExcelAnalysisPanel';
-import AdminBulkSurveyPanel from './AdminBulkSurveyPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminReportBuilder from './AdminReportBuilder';
 const MorbidityHygienePanel = lazy(() => import('./MorbidityHygienePanel'));
@@ -67,7 +65,6 @@ type TabId =
   | 'excel'
   | 'medimport'
   | 'questions'
-  | 'bulk'
   | 'doctors'
   | 'logs';
 
@@ -98,7 +95,6 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'Boshqaruv',
     items: [
       { id: 'questions', label: 'Anketa tahriri', hint: 'Savol matnlari', icon: Pencil },
-      { id: 'bulk', label: 'Ommaviy anketa', hint: 'CSV orqali', icon: Play },
       { id: 'doctors', label: 'Shifokorlar', hint: 'Tasdiqlash', icon: Stethoscope },
       { id: 'logs', label: 'Tizim loglari', hint: 'Server', icon: ScrollText },
     ],
@@ -432,7 +428,6 @@ export default function AdminDashboard({
               onReload={loadAll}
             />
           )}
-          {tab === 'bulk' && <AdminBulkSurveyPanel questionnaire={questionnaire} onComplete={loadAll} />}
           {tab === 'questions' && <QuestionEditor />}
           {tab === 'medimport' && (
             <Suspense
@@ -446,7 +441,7 @@ export default function AdminDashboard({
             </Suspense>
           )}
 
-          {loading && !['excel', 'reports', 'bulk', 'questions', 'medimport'].includes(tab) ? (
+          {loading && !['excel', 'reports', 'questions', 'medimport'].includes(tab) ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-500 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
               <p className="text-sm">{t("Ma'lumotlar yuklanmoqda...", language)}</p>
