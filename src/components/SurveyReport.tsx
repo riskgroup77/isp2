@@ -15,6 +15,9 @@ import { buildRows } from '../lib/reportBuilder';
 import { toNum, toStr } from '../lib/formulaEngine';
 import type { UserProfile } from '../types';
 import DiseaseRiskPrognosis from './DiseaseRiskPrognosis';
+import RiskEvidencePanel from './RiskEvidencePanel';
+import { buildEvidence, evidenceToSections, formatNum, pdfSafe, ZONE_STYLE } from '../lib/riskEvidence';
+import { computeDiseasePrognoses } from '../lib/diseaseRisk';
 import SurveyAnswers from './SurveyAnswers';
 import { getOptionDisplayLabel, getQuestionDisplayText } from '../lib/questionnaireI18n';
 import { t } from '../lib/lang';
@@ -107,8 +110,17 @@ export default function SurveyReport({
   }, [localSurvey, clinical, user]);
   const zoneStyle = getRiskZoneStyle(localSurvey.risk_zonasi || report?.zona);
   const hasAiError = !report && (localSurvey.ai_xato || !initialTahlil);
-  const tmiValue = report?.tmi ?? person.bmi ?? null;
-  const riskValue = report?.riskFoizi ?? localSurvey.score_total;
+  const evidence = React.useMemo(
+    () =>
+      buildEvidence({
+        answers: localSurvey.answers as Record<string, unknown>,
+        clinical,
+        profile: { yosh: user?.yosh, jins: user?.jins },
+        date: localSurvey.created_at,
+      }),
+    [localSurvey, clinical, user]
+  );
+  const evZone = evidence.zone ? ZONE_STYLE[evidence.zone] : null;
 
   const handleReanalyze = async () => {
     setReanalyzing(true);
@@ -161,7 +173,16 @@ export default function SurveyReport({
 
     doc.setFontSize(12);
     doc.text(
-      `Risk: ${r?.riskFoizi ?? localSurvey.score_total}% | Zona: ${localSurvey.risk_zonasi || r?.zona || '-'}`,
+      pdfSafe(
+        `Zona (isbotlangan): ${evidence.zone ?? '-'} | Framingham 10 yil: ${evidence.framingham.ok ? `${formatNum(evidence.framingham.risk!)}%` : '-'}`
+      ),
+      14,
+      y
+    );
+    y += 6;
+    doc.setFontSize(9);
+    doc.text(
+      `Server balli: ${r?.riskFoizi ?? localSurvey.score_total}% | Server zonasi: ${localSurvey.risk_zonasi || r?.zona || '-'} (formulasi serverda)`,
       14,
       y
     );
@@ -174,10 +195,10 @@ export default function SurveyReport({
         y = 15;
       }
       doc.setFontSize(11);
-      doc.text(title, 14, y);
+      doc.text(pdfSafe(title), 14, y);
       y += 6;
       doc.setFontSize(9);
-      const lines: string[] = doc.splitTextToSize(text, 180);
+      const lines: string[] = doc.splitTextToSize(pdfSafe(text), 180);
       lines.forEach((ln) => {
         if (y > 285) {
           doc.addPage();
@@ -189,6 +210,9 @@ export default function SurveyReport({
       y += 6;
     };
 
+    evidenceToSections(evidence, computeDiseasePrognoses(evidence)).forEach((sec) =>
+      addSection(sec.title, sec.lines.join('\n'))
+    );
     addSection('Statistika', r?.statistika?.matn);
     addSection('Korrelyatsiya', r?.korrelyatsiya?.matn);
     addSection('Natijalar', r?.natijalar);
@@ -272,8 +296,9 @@ export default function SurveyReport({
           <div>
             <p className="font-bold text-blue-900 text-sm">Bu anketa AI tahlilisiz saqlangan</p>
             <p className="text-xs text-blue-800 mt-1">
-              Xavf balli va zona server hisoblagan ball bo'yicha. Xavf omillari, klinik xulosa va tavsiyalar uchun "Qayta tahlil qilish" tugmasini
-              bosing. Xodimning barcha javoblari pastdagi "Anketa javoblari" bo'limida.
+              Server balli va server zonasi server formulasi bo'yicha. Isbotlangan zona va barcha foizlar "Hisob-kitob isboti"
+              bo'limida. AI xulosasi va tavsiyalar uchun "Qayta tahlil qilish" tugmasini bosing. Xodimning barcha javoblari
+              pastdagi "Anketa javoblari" bo'limida.
             </p>
           </div>
         </div>
@@ -309,32 +334,57 @@ export default function SurveyReport({
           ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
           className="p-5 rounded-2xl border-2 text-center"
-          style={{ borderColor: zoneStyle.color }}
+          style={{ borderColor: evZone?.color ?? '#cbd5e1', background: evZone?.bg }}
         >
-          <Activity className="w-6 h-6 mx-auto mb-2" style={{ color: zoneStyle.color }} />
-          <p className="text-[10px] uppercase font-bold text-slate-500">Risk zonasi</p>
-          <p className="text-2xl font-black" style={{ color: zoneStyle.color }}>
-            {localSurvey.risk_zonasi || report?.zona || '—'}
+          <Activity className="w-6 h-6 mx-auto mb-2" style={{ color: evZone?.color ?? '#64748b' }} />
+          <p className="text-[10px] uppercase font-bold text-slate-500">Risk zonasi (isbotlangan)</p>
+          <p className="text-2xl font-black" style={{ color: evZone?.color ?? '#64748b' }}>
+            {evidence.zone ?? '—'}
           </p>
-          <p className="text-xs text-slate-600 mt-1">{zoneStyle.label}</p>
+          <p className="text-xs text-slate-600 mt-1">{evZone?.label ?? "Ma'lumot yetarli emas"}</p>
         </div>
         <div className="p-5 rounded-2xl border border-slate-200 bg-white text-center">
           <TrendingUp className="w-6 h-6 mx-auto mb-2 text-indigo-600" />
-          <p className="text-[10px] uppercase font-bold text-slate-500">Risk balli</p>
+          <p className="text-[10px] uppercase font-bold text-slate-500">10 yillik YQT xavfi (Framingham)</p>
           <p className="text-2xl font-black text-indigo-700">
+            {evidence.framingham.ok ? `${formatNum(evidence.framingham.risk!)}%` : '—'}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {evidence.framingham.ok ? "Formula va qiymatlar pastda, 6-bo'limda" : evidence.framingham.reason}
+          </p>
+        </div>
+        <div className="p-5 rounded-2xl border border-slate-200 bg-white text-center">
+          <p className="text-[10px] uppercase font-bold text-slate-500">Server balli</p>
+          <p className="text-2xl font-black text-slate-700">
             {report?.riskFoizi ?? localSurvey.score_total}%
+          </p>
+          <p className="text-[11px] mt-1" style={{ color: zoneStyle.color }}>
+            Server zonasi: {localSurvey.risk_zonasi || report?.zona || '—'}
+          </p>
+          <p className="text-[10px] text-slate-500 mt-1">
+            {report?.riskFoizi != null ? 'AI bahosi' : 'Server (backend) formulasi'} — shu sahifada isbotlanmaydi
           </p>
         </div>
       </div>
 
+      <RiskEvidencePanel
+        evidence={evidence}
+        serverBall={report?.riskFoizi ?? localSurvey.score_total}
+        serverZona={localSurvey.risk_zonasi || report?.zona || null}
+      />
+
       {report?.faktorlar && report.faktorlar.length > 0 && (
         <section className="bg-white rounded-2xl border border-slate-200 p-5">
-          <h3 className="font-bold text-slate-800 mb-4 uppercase text-xs tracking-wider">
-            Xavf omillari
+          <h3 className="font-bold text-slate-800 mb-1 uppercase text-xs tracking-wider">
+            Xavf omillari (AI bahosi)
           </h3>
+          <p className="text-[11px] text-slate-500 mb-4">
+            Bu foizlarni sun'iy intellekt matn sifatida bergan, ular formula bilan hisoblanmagan. Isbotlangan
+            ko'rsatkichlar "Hisob-kitob isboti" bo'limida.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {report.faktorlar.map((f, i) => (
               <div key={i} className="p-4 rounded-xl bg-slate-50 border border-slate-100">
@@ -408,21 +458,7 @@ export default function SurveyReport({
         <ReportBlock title="Klinik xulosa" content={report.klinikXulosa} />
       )}
 
-      {(report || typeof riskValue === 'number') && (
-        <DiseaseRiskPrognosis
-          input={{
-            riskFoizi: riskValue,
-            tmi: tmiValue ?? undefined,
-            answers: localSurvey.answers,
-            sistolik: person.sistolik,
-            diastolik: person.diastolik,
-            glyukoza: person.glyukoza,
-            yosh: person.yosh,
-            chekish: person.chekish,
-            jins: person.jins,
-          }}
-        />
-      )}
+      <DiseaseRiskPrognosis evidence={evidence} />
 
       <SurveyAnswers
         answers={localSurvey.answers as Record<string, unknown>}

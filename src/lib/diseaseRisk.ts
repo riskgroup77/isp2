@@ -1,147 +1,163 @@
+/**
+ * Kasallik risk prognozlari — har bir kasallik bo'yicha xavf indeksi.
+ *
+ * Usul ("АНКЕТА СТАТИСТИКА", 1-band — ballar yordamida baholash):
+ * har bir xavf omili 0 / 1 / 2 ball bilan kodlanadi (yo'q / o'rtacha / kuchli),
+ *   Indeks = Σ ball / (2 × ma'lumoti bor omillar soni) × 100%.
+ * Ma'lumoti yo'q omil hisobga olinmaydi (suratdan ham, maxrajdan ham chiqariladi)
+ * va "ma'lumot yo'q" deb ko'rsatiladi. Indeks — omillar yig'indisining ulushi,
+ * kasallik yuzaga kelish ehtimoli emas.
+ */
+import type { Evidence, Level, LevelKey } from './riskEvidence';
+
 export interface DiseaseType {
   id: string;
   nomi: string;
   tavsif: string;
-  omillar: string[];
+  omillar: { key: LevelKey; label: string }[];
+}
+
+export interface FactorScore {
+  key: LevelKey;
+  label: string;
+  ball: Level | null;
+  dalil: string;
 }
 
 export interface DiseasePrognosis {
   kasallik: DiseaseType;
-  xavfFoizi: number;
-  zona: 'past' | 'ortacha' | 'yuqori' | 'juda_yuqori';
+  /** null — ma'lumot yetarli emas */
+  xavfFoizi: number | null;
+  zona: 'past' | 'ortacha' | 'yuqori' | 'juda_yuqori' | null;
   prognoz: string;
   tavsiyalar: string[];
+  omillar: FactorScore[];
+  yigindi: number;
+  maksimal: number;
+  formula: string;
 }
+
+const L = {
+  bosim: 'Arterial qon bosimi',
+  tvi: 'Tana vazni indeksi',
+  glyukoza: 'Glyukoza',
+  xolesterin: 'Umumiy xolesterin',
+  chekish: 'Chekish',
+  gipodinamiya: 'Gipodinamiya',
+  ovqatlanish: "Noto'g'ri ovqatlanish",
+  stress: 'Psixoemotsional stress',
+  tuz: "Ovqatga tuz qo'shish",
+  yosh: 'Yosh',
+  meva: 'Meva-sabzavot kamligi',
+  uyqu: 'Uyqu buzilishi',
+  yurak_simptom: 'Yurak urishi / nafas yetishmasligi',
+} satisfies Record<LevelKey, string>;
+
+const f = (...keys: LevelKey[]) => keys.map((key) => ({ key, label: L[key] }));
 
 export const DISEASE_TYPES: DiseaseType[] = [
   {
     id: 'gipertoniya',
     nomi: 'Arterial gipertoniya',
-    tavsif: 'Yuqori qon bosimi bilan bog\'liq kardiovaskulyar xavf',
-    omillar: ['qon bosimi', 'tuz', 'stress', 'vazn'],
+    tavsif: "Yuqori qon bosimi bilan bog'liq kardiovaskulyar xavf",
+    omillar: f('bosim', 'tvi', 'tuz', 'stress', 'gipodinamiya', 'yosh', 'chekish'),
   },
   {
     id: 'diabet',
     nomi: 'Qandli diabet (2-tip)',
     tavsif: 'Insulin qarshiligi va glyukoza metabolizmi buzilishi',
-    omillar: ['glyukoza', 'vazn', 'TMI', 'harakat'],
+    omillar: f('glyukoza', 'tvi', 'gipodinamiya', 'meva', 'ovqatlanish', 'yosh'),
   },
   {
     id: 'yurak_ishemik',
     nomi: 'Yurak ishemik kasalligi',
-    tavsif: 'Yurak qon tomirlarining torayishi va ishemiya',
-    omillar: ['chekish', 'xolesterin', 'bosim', 'stress'],
+    tavsif: "Yurak qon tomirlarining torayishi va ishemiya",
+    omillar: f('chekish', 'xolesterin', 'bosim', 'stress', 'yosh', 'tvi', 'glyukoza'),
   },
   {
     id: 'insult',
-    nomi: 'Insult (miya infarkti)',
-    tavsif: 'Miya qon aylanishining o\'tkir buzilishi xavfi',
-    omillar: ['bosim', 'chekish', 'diabet', 'yosh'],
+    nomi: 'Insult (miya qon aylanishi buzilishi)',
+    tavsif: "Miya qon aylanishining o'tkir buzilishi xavfi",
+    omillar: f('bosim', 'chekish', 'glyukoza', 'yosh', 'xolesterin'),
   },
   {
     id: 'ateroskleroz',
     nomi: 'Ateroskleroz',
-    tavsif: 'Qon tomir devorida yog\'li plakalar shakllanishi',
-    omillar: ['xolesterin', 'chekish', 'tuz', 'harakat'],
+    tavsif: "Qon tomir devorida yog'li plakalar shakllanishi",
+    omillar: f('xolesterin', 'chekish', 'tuz', 'gipodinamiya', 'yosh', 'tvi'),
   },
   {
     id: 'yurak_yetishmovchiligi',
     nomi: 'Yurak yetishmovchiligi',
-    tavsif: 'Yurakning qonni yetarli pompalay olmasligi',
-    omillar: ['bosim', 'semizlik', 'faollik', 'uyqu'],
+    tavsif: 'Yurakning qonni yetarli haydab bera olmasligi',
+    omillar: f('bosim', 'tvi', 'gipodinamiya', 'uyqu', 'yurak_simptom'),
   },
 ];
 
-export interface PrognosisInput {
-  riskFoizi?: number;
-  tmi?: number;
-  sistolik?: number;
-  diastolik?: number;
-  glyukoza?: number;
-  chekish?: boolean;
-  yosh?: number;
-  jins?: string;
-  answers?: Record<string, unknown>;
-}
+/** Indeks hisoblanishi uchun kamida shuncha omil bo'yicha ma'lumot kerak */
+export const MIN_KNOWN_FACTORS = 3;
 
-function zonaFromPercent(p: number): DiseasePrognosis['zona'] {
+export function zonaFromPercent(p: number): NonNullable<DiseasePrognosis['zona']> {
   if (p < 20) return 'past';
   if (p < 45) return 'ortacha';
   if (p < 70) return 'yuqori';
   return 'juda_yuqori';
 }
 
-function zonaColor(z: DiseasePrognosis['zona']): string {
-  const map = { past: '#22c55e', ortacha: '#eab308', yuqori: '#f97316', juda_yuqori: '#ef4444' };
+export function zonaColor(z: DiseasePrognosis['zona']): string {
+  if (!z) return '#64748b';
+  const map = { past: '#16a34a', ortacha: '#ca8a04', yuqori: '#ea580c', juda_yuqori: '#dc2626' };
   return map[z];
 }
 
-export { zonaColor };
-
-export function computeDiseasePrognoses(input: PrognosisInput): DiseasePrognosis[] {
-  const base = input.riskFoizi ?? 25;
-  const tmi = input.tmi ?? 24;
-  const sys = input.sistolik ?? 120;
-  const dia = input.diastolik ?? 80;
-  const gly = input.glyukoza ?? 5.0;
-  const smokes =
-    input.chekish ??
-    String(input.answers?.['51'] ?? '').includes('Hozirda chekaman');
-  const age = input.yosh ?? 40;
-
+export function computeDiseasePrognoses(ev: Evidence): DiseasePrognosis[] {
   return DISEASE_TYPES.map((kasallik) => {
-    let score = base * 0.35;
+    const omillar: FactorScore[] = kasallik.omillar.map((o) => ({
+      key: o.key,
+      label: o.label,
+      ball: ev.levels[o.key],
+      dalil: ev.levelEvidence[o.key],
+    }));
+    const known = omillar.filter((o) => o.ball !== null);
+    const yigindi = known.reduce((s, o) => s + (o.ball as number), 0);
+    const maksimal = known.length * 2;
+    const nomi = kasallik.nomi.toLowerCase();
 
-    if (kasallik.id === 'gipertoniya') {
-      if (sys >= 140 || dia >= 90) score += 35;
-      else if (sys >= 130) score += 18;
-      if (tmi >= 30) score += 12;
-    }
-    if (kasallik.id === 'diabet') {
-      if (gly >= 7) score += 40;
-      else if (gly >= 6.1) score += 22;
-      if (tmi >= 28) score += 15;
-    }
-    if (kasallik.id === 'yurak_ishemik') {
-      if (smokes) score += 20;
-      if (sys >= 140) score += 15;
-      if (age > 50) score += 10;
-    }
-    if (kasallik.id === 'insult') {
-      if (sys >= 160) score += 30;
-      if (smokes) score += 15;
-      if (gly >= 6.1) score += 12;
-      if (age > 55) score += 10;
-    }
-    if (kasallik.id === 'ateroskleroz') {
-      if (smokes) score += 18;
-      if (tmi >= 27) score += 12;
-      if (age > 45) score += 8;
-    }
-    if (kasallik.id === 'yurak_yetishmovchiligi') {
-      if (sys >= 140) score += 15;
-      if (tmi >= 30) score += 18;
-      score += base * 0.2;
+    if (known.length < MIN_KNOWN_FACTORS) {
+      return {
+        kasallik,
+        xavfFoizi: null,
+        zona: null,
+        prognoz: `Hisoblanmadi: ${kasallik.omillar.length} ta omildan ${known.length} tasi bo'yicha ma'lumot bor (kamida ${MIN_KNOWN_FACTORS} ta kerak).`,
+        tavsiyalar: ['Klinik bosqichda qon bosimi, vazn, bo\'y va glyukozani kiriting'],
+        omillar,
+        yigindi,
+        maksimal,
+        formula: '—',
+      };
     }
 
-    const xavfFoizi = Math.min(99, Math.round(score));
+    const exact = (yigindi / maksimal) * 100;
+    const xavfFoizi = Math.round(exact);
     const zona = zonaFromPercent(xavfFoizi);
+    const formula = `${known.map((o) => o.ball).join(' + ')} = ${yigindi};  ${yigindi} / (2 × ${known.length}) × 100% = ${yigindi} / ${maksimal} × 100% = ${exact.toFixed(1).replace('.', ',')}% ≈ ${xavfFoizi}%`;
 
-    const prognozMap: Record<string, string> = {
-      past: `5 yil ichida ${kasallik.nomi.toLowerCase()} rivojlanish ehtimoli past.`,
-      ortacha: `Profilaktika choralarisiz ${kasallik.nomi.toLowerCase()} xavfi o'rtacha darajada.`,
-      yuqori: `${kasallik.nomi} rivojlanish xavfi yuqori — tibbiy nazorat tavsiya etiladi.`,
-      juda_yuqori: `${kasallik.nomi} uchun juda yuqori xavf — shoshilinch shifokor ko'rigi kerak.`,
+    const prognozMap: Record<NonNullable<DiseasePrognosis['zona']>, string> = {
+      past: `${kasallik.nomi} bo'yicha xavf omillari kam ifodalangan.`,
+      ortacha: `Profilaktika choralarisiz ${nomi} xavfi o'rtacha darajada.`,
+      yuqori: `${kasallik.nomi} xavf omillari ko'p — tibbiy nazorat tavsiya etiladi.`,
+      juda_yuqori: `${kasallik.nomi} xavf omillari juda ko'p — shifokor ko'rigi kerak.`,
     };
 
     const tavsiyalar: string[] = [];
     if (zona === 'yuqori' || zona === 'juda_yuqori') {
       tavsiyalar.push('Mutaxassis shifokorga murojaat qiling');
-      tavsiyalar.push('Har 3-6 oyda qayta skrining');
+      tavsiyalar.push('Har 3–6 oyda qayta skrining');
     }
-    if (kasallik.id === 'gipertoniya') tavsiyalar.push('Kunlik qon bosimini kuzating');
+    if (kasallik.id === 'gipertoniya') tavsiyalar.push('Qon bosimini muntazam o\'lchang');
     if (kasallik.id === 'diabet') tavsiyalar.push('Glyukoza va parhez nazorati');
-    if (smokes) tavsiyalar.push('Tamaki iste\'molini to\'xtatish');
+    if ((ev.levels.chekish ?? 0) === 2) tavsiyalar.push("Tamaki iste'molini to'xtatish");
+    if ((ev.levels.gipodinamiya ?? 0) === 2) tavsiyalar.push("Haftasiga kamida 150 daqiqa o'rtacha jismoniy faollik");
 
     return {
       kasallik,
@@ -149,6 +165,10 @@ export function computeDiseasePrognoses(input: PrognosisInput): DiseasePrognosis
       zona,
       prognoz: prognozMap[zona],
       tavsiyalar: [...new Set(tavsiyalar)],
+      omillar,
+      yigindi,
+      maksimal,
+      formula,
     };
   });
 }

@@ -27,6 +27,8 @@ import {
   type Ctx,
   type Val,
 } from './formulaEngine';
+import { buildEvidence } from './riskEvidence';
+import { computeDiseasePrognoses, DISEASE_TYPES } from './diseaseRisk';
 
 // ── O'zgaruvchilar katalogi ───────────────────────────
 
@@ -63,6 +65,18 @@ const FIXED_VARS: VariableDef[] = [
   { name: 'diastolik', label: 'Diastolik bosim (klinik yoki q40)', group: 'Klinik', type: 'number' },
   { name: 'glyukoza', label: 'Glyukoza, mmol/l (klinik)', group: 'Klinik', type: 'number' },
   { name: 'xolesterin', label: 'Xolesterin, mmol/l (klinik)', group: 'Klinik', type: 'number' },
+  { name: 'zona_isbot', label: "Zona — hujjat mezonlari bo'yicha (isbotlangan)", group: 'Natija', type: 'text', options: ['yashil', 'sariq', 'qizil'] },
+  { name: 'framingham', label: 'Framingham 10 yillik YQT xavfi, %', group: 'Natija', type: 'number' },
+  { name: 'r_itog', label: 'Fine-Kinney R_itog (Σ P×E×C)', group: 'Natija', type: 'number' },
+  { name: 'ovqat_ball', label: 'Ovqatlanish xavfi integral balli (0–10)', group: 'Natija', type: 'number' },
+  { name: 'stress_ball', label: 'Stress integral balli (0–10)', group: 'Natija', type: 'number' },
+  { name: 'chekish_omil', label: 'Chekish omili (1/0)', group: 'Natija', type: 'number' },
+  { name: 'gipodinamiya', label: 'Gipodinamiya omili (1/0)', group: 'Natija', type: 'number' },
+  { name: 'ovqat_omil', label: "Noto'g'ri ovqatlanish omili (1/0)", group: 'Natija', type: 'number' },
+  { name: 'stress_omil', label: 'Surunkali stress omili (1/0)', group: 'Natija', type: 'number' },
+  ...DISEASE_TYPES.map(
+    (d): VariableDef => ({ name: `idx_${d.id}`, label: `${d.nomi} — xavf indeksi, %`, group: 'Natija', type: 'number' })
+  ),
 ];
 
 export function questionVarName(id: string | number): string {
@@ -195,6 +209,26 @@ export function buildRows(
       glyukoza: pickNum(klinik.glyukoza, a['glyukoza']),
       xolesterin: pickNum(klinik.xolesterin, a['xolesterin']),
     } satisfies Ctx);
+
+    // Isbotlangan ko'rsatkichlar (har bir anketa sahifasidagi "Hisob-kitob isboti" bilan bir xil)
+    const ev = buildEvidence({
+      answers: a,
+      profile: { yosh: patient?.yosh ?? null, jins: patient?.jins ?? null },
+      date: s.created_at,
+    });
+    const factor = (k: string) => ev.factors.find((f) => f.key === k)?.value ?? null;
+    ctx.zona_isbot = ev.zone ?? '';
+    ctx.framingham = ev.framingham.ok ? ev.framingham.risk! : null;
+    ctx.r_itog = ev.fk.rItog;
+    ctx.ovqat_ball = ev.scores.find((x) => x.key === 'ovqatlanish')?.ball10 ?? null;
+    ctx.stress_ball = ev.scores.find((x) => x.key === 'stress')?.ball10 ?? null;
+    ctx.chekish_omil = factor('chekish');
+    ctx.gipodinamiya = factor('gipodinamiya');
+    ctx.ovqat_omil = factor('ovqatlanish');
+    ctx.stress_omil = factor('stress');
+    computeDiseasePrognoses(ev).forEach((p) => {
+      ctx[`idx_${p.kasallik.id}`] = p.xavfFoizi;
+    });
     return { survey: s, ctx };
   });
 }

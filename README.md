@@ -44,3 +44,16 @@ Formula dvigateli: `src/lib/formulaEngine.ts` (xavfsiz, `eval`siz). Funksiyalar 
 - **Intensiv / ekstensiv**: agregatlar "Intensiv, % (100 ga)", "Intensiv, ‰ (1000 ga)", "Ekstensiv, % (jami)".
 - **Kasallanish va gigiyena** (admin bo'limi): 5 yillik VMLK (shablon yoki 16-VN shakli) va gigiyenik o'lchovlar importi — dinamika, tuzilma, intensiv ko'rsatkichlar, guruhlar taqqoslash; Excel/Word eksport. Ma'lumot brauzerda saqlanadi.
 - **SPSS (.sav)**: konstruktor (filtrdan o'tganlar, taqqoslash guruhi `GURUH`) va jonli N=400 tanlamasi; o'zgaruvchi/qiymat yorliqlari, UTF-8.
+
+## Hisob-kitob isboti (har bir anketa)
+
+"So'rovnomalar" hisobotida va xodimning natija sahifasida har bir ko'rsatkich qadam-baqadam isbotlanadi (`src/lib/riskEvidence.ts`, `src/components/RiskEvidencePanel.tsx`). Hisob brauzerda, anketa javoblaridan bajariladi, shuning uchun har bir yangi anketaga ham avtomatik qo'llanadi.
+
+- **Validatsiya**: oraliqdan tashqaridagi qiymatlar (yosh, vazn, bo'y, bosim, glyukoza) xato deb topiladi va hisobga olinmaydi; yashirin standart qiymat ishlatilmaydi.
+- **TVI**, **AQB toifasi**, **integral ballar** (Ha = 2, Ba'zan = 1, Yo'q = 0; 0–10 shkala), **A guruhi omillari** (1/0), **Fine-Kinney** R = P × E × C va R_itog.
+- **Framingham 2008** (TVI asosidagi model) — 10 yillik yurak-qon tomir kasalligi xavfi, koeffitsientlar va har bir ko'paytma bilan.
+- **Zona** — mijoz hujjatidagi qizil / sariq / yashil mezonlar jadvali, har bir mezon bajarilgan-bajarilmagani bilan.
+- **Kasallik risk prognozlari** (`src/lib/diseaseRisk.ts`) — xavf indeksi = Σ ball / (2 × omillar soni) × 100%, har bir omil dalili bilan.
+- Fine-Kinney uchun javob → P, E, C jadvali (`FINE_KINNEY_TABLE`) ekspert taklifi; dissertatsiya muallifi tasdiqlashi kerak.
+- Konstruktor o'zgaruvchilari: `zona_isbot`, `framingham`, `r_itog`, `ovqat_ball`, `stress_ball`, `chekish_omil`, `gipodinamiya`, `ovqat_omil`, `stress_omil`, `idx_<kasallik>`.
+

@@ -53,6 +53,7 @@ import AdminDashboard from './components/AdminDashboard';
 import SurveyWizard from './components/SurveyWizard';
 import SurveyReport from './components/SurveyReport';
 import DiseaseRiskPrognosis from './components/DiseaseRiskPrognosis';
+import { buildEvidence } from './lib/riskEvidence';
 import ApiStatusBanner from './components/ApiStatusBanner';
 import { t } from './lib/lang';
 import { APP_BRAND, APP_CARD_TITLE, APP_DISCLAIMER, APP_FOOTER_COPY } from './lib/branding';
@@ -2570,16 +2571,18 @@ export default function App() {
                   </div>
 
                   <DiseaseRiskPrognosis
-                    input={{
-                      riskFoizi: riskResult.riskFoizi,
-                      tmi: riskResult.tmi,
-                      sistolik: formData.sistolik,
-                      diastolik: formData.diastolik,
-                      glyukoza: formData.glyukoza !== '' ? Number(formData.glyukoza) : undefined,
+                    evidence={buildEvidence({
+                      clinical: {
+                        sistolik: formData.sistolik,
+                        diastolik: formData.diastolik,
+                        vazn: formData.vazn,
+                        boy: formData.boy,
+                        glyukoza: formData.glyukoza !== '' ? Number(formData.glyukoza) : null,
+                        xolesterin: formData.xolesterin !== '' ? Number(formData.xolesterin) : null,
+                      },
+                      profile: { yosh: formData.yosh, jins: formData.jins },
                       chekish: formData.chekish === 'ha',
-                      yosh: formData.yosh,
-                      jins: formData.jins,
-                    }}
+                    })}
                   />
 
                   {/* CLINICAL COMPLIANCE ANALYSIS (INNOVATION 4 DETAILED REPORT) */}
